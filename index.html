@@ -1,48 +1,455 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>理財小富翁遊戲</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>理財小富翁（動物版）— 8×8 螺旋地圖 + 地產 + 自訂機率/金額 + 平滑分佈 + 排行 + CSV</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #f0f8ff; text-align: center; }
-  .board { display: grid; grid-template-columns: repeat(8, 50px); grid-template-rows: repeat(8, 50px); gap: 2px; margin: 20px auto; }
-  .cell { background: white; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-  .player { background: yellow; border-radius: 50%; width: 20px; height: 20px; }
-  button { margin: 10px; padding: 10px 15px; font-size: 16px; }
+  body{font-family:"Noto Sans TC",Arial,sans-serif;background:#f0f8ff;margin:0;padding:12px;text-align:center}
+  h1{margin:6px 0 10px}
+  .grid{display:grid;grid-template-columns:repeat(4, minmax(120px,1fr));gap:10px;max-width:1080px;margin:0 auto}
+  .panel{background:#fff;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.12);padding:10px;text-align:left}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  label{font-size:14px}
+  input,select{padding:6px;border-radius:8px;border:1px solid #cbd5e1}
+  input[type=number]{width:90px}
+  button{padding:8px 12px;border:0;border-radius:10px;background:#5d9cec;color:#fff;font-size:14px;cursor:pointer}
+  button.secondary{background:#cbd5e1;color:#111}
+  .avatar{border:2px solid transparent;border-radius:14px;background:#fff8dc;padding:8px;cursor:pointer;transition:transform .15s,border-color .2s;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .avatar:hover{transform:translateY(-2px);border-color:#5d9cec}
+  .avatar img{width:80%;height:auto;object-fit:contain;border-radius:10px}
+  .avatar span{font-size:14px;font-weight:700}
+
+  .stats{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;margin:6px auto}
+  .chip{background:#fff;border-radius:999px;padding:6px 10px;box-shadow:0 2px 8px rgba(0,0,0,.07);font-size:13px}
+  .good{color:#2e7d32}.bad{color:#c62828}
+
+  #dice{font-size:72px;cursor:pointer;user-select:none;margin-top:6px}
+  #result{margin-top:6px;font-size:18px;font-weight:700}
+
+  #card{display:none;border:2px solid #8fb3ff;padding:12px;margin:10px auto 0;width:min(920px,95vw);border-radius:14px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.12);text-align:left}
+  #card h3{margin:4px 0 6px}
+  #card .row{display:flex;gap:12px;align-items:center}
+  #card .amount{font-weight:700}
+
+  /* 8x8 螺旋棋盤 */
+  .board{margin:10px auto;display:grid;grid-template-columns:repeat(8, 52px);grid-template-rows:repeat(8, 52px);gap:4px;justify-content:center}
+  .cell{background:#eaf4ff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#333}
+  .tile{background:#fff;border:2px solid #8fb3ff;border-radius:10px;padding:2px;width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between}
+  .tile h4{margin:2px 4px;font-size:10px}
+  .pills{display:flex;flex-wrap:wrap;gap:2px;padding:0 2px 2px}
+  .pill{font-size:9px;background:#eef3ff;border:1px solid #c7d8ff;border-radius:999px;padding:1px 3px}
+  #tileInfo{margin-top:6px;font-size:14px}
+
+  details{max-width:1080px;margin:8px auto;text-align:left}
+  summary{cursor:pointer}
+  #testOutput{max-width:1080px;margin:10px auto;text-align:left;white-space:pre-wrap;background:#fff;border:1px dashed #bbb;padding:8px;display:none}
 </style>
 </head>
 <body>
-  <h1>理財小富翁遊戲</h1>
-  <div class="board" id="board"></div>
-  <p id="status">請擲骰子開始遊戲</p>
-  <button id="rollBtn">擲骰子</button>
-<script>
-  const boardEl = document.getElementById('board');
-  const statusEl = document.getElementById('status');
-  const rollBtn = document.getElementById('rollBtn');
+  <h1>🎲 理財小富翁（動物版）</h1>
 
-  const size = 8;
-  for (let i = 0; i < size * size; i++) {
-    const cell = document.createElement('div');
-    cell.className = 'cell';
-    cell.id = 'cell-' + i;
-    cell.textContent = i + 1;
-    boardEl.appendChild(cell);
+  <section class="grid">
+    <div class="panel" id="setup">
+      <h3>玩家與規則</h3>
+      <div class="row">
+        <input id="nameInput" placeholder="請輸入玩家名稱"/>
+        <label>回合上限：<input type="number" id="roundLimit" min="1" max="50" value="20" style="width:80px"></label>
+        <label>勝利金額：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:90px"></label>
+      </div>
+      <div class="row">
+        <label>棋盤配置：
+          <select id="layoutMode">
+            <option value="random">隨機（每局不同）</option>
+            <option value="fixed">固定（依種子）</option>
+          </select>
+        </label>
+        <label>固定種子：<input id="seedInput" placeholder="例如 classA" style="width:120px"></label>
+        <label><input type="checkbox" id="smoothOn" checked> 平滑分佈（避免同類連續超過 2 格）</label>
+      </div>
+
+      <details open>
+        <summary>⚙️ 機率與金額設定</summary>
+        <div class="row">
+          <strong>格子機率（%）</strong>
+          <label>零用金/紅利 <input type="number" id="wSalary" value="25"></label>
+          <label>事件 <input type="number" id="wEvent" value="20"></label>
+          <label>商店 <input type="number" id="wShop" value="12"></label>
+          <label>股票 <input type="number" id="wStock" value="10"></label>
+          <label>稅金 <input type="number" id="wTax" value="8"></label>
+          <label>捐款 <input type="number" id="wDonate" value="5"></label>
+          <label>地產 <input type="number" id="wProp" value="20"></label>
+        </div>
+        <div class="row">
+          <strong>金額範圍</strong>
+          <label>零用金/紅利 <input type="number" id="salaryMin" value="180">～<input type="number" id="salaryMax" value="420"></label>
+          <label>商店支出 <input type="number" id="shopMin" value="60">～<input type="number" id="shopMax" value="260"></label>
+          <label>稅金 <input type="number" id="taxMin" value="80">～<input type="number" id="taxMax" value="180"></label>
+          <label>捐款 <input type="number" id="donateMin" value="60">～<input type="number" id="donateMax" value="140"></label>
+          <label>股票變動 <input type="number" id="stockMin" value="-150">～<input type="number" id="stockMax" value="250"></label>
+        </div>
+        <div class="row">
+          <strong>地產</strong>
+          <label>房價 <input type="number" id="propMin" value="600">～<input type="number" id="propMax" value="1400"></label>
+          <label>租金率(%) <input type="number" id="rentRate" value="18" style="width:70px"></label>
+          <label>購買需足夠餘額 <input type="checkbox" id="needCash" checked></label>
+        </div>
+      </details>
+
+      <p style="margin:6px 0">點下方動物加入（最多 8 人）：</p>
+      <div id="avatars" class="row" style="justify-content:flex-start;flex-wrap:wrap"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="startGame">開始遊戲</button>
+        <button id="quickNew" class="secondary">新局（保留玩家，不變更棋盤）</button>
+        <button id="reseedNew" class="secondary">新局＋重抽棋盤</button>
+      </div>
+    </div>
+
+    <div class="panel" id="game" style="display:none">
+      <h3>目前玩家： <span id="currentPlayerName"></span></h3>
+      <div class="row"><span>回合：<span id="roundNow">1</span>/<span id="roundMax">20</span></span></div>
+      <div class="stats">
+        <div class="chip good">總收入：<span id="income">0</span></div>
+        <div class="chip bad">總支出：<span id="expense">0</span></div>
+        <div class="chip">現金餘額：<strong id="balance">0</strong></div>
+      </div>
+      <div id="dice" title="點我擲骰">🎲</div>
+      <div id="result"></div>
+      <div id="card">
+        <div class="row">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+            <img id="cardAvatar" alt="角色" style="width:72px;height:72px;border-radius:12px;object-fit:cover"/>
+            <div id="characterName" style="font-weight:600"></div>
+          </div>
+          <div>
+            <h3 id="cardTitle">事件卡</h3>
+            <p id="cardText">內容會在這裡出現</p>
+            <p class="amount" id="cardAmount"></p>
+            <div class="row">
+              <button id="buyBtn" class="secondary" style="display:none">購買地產</button>
+              <button id="okBtn">知道了</button>
+              <button id="nextBtn" class="secondary">下一位</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:10px">
+        <h4>8×8 螺旋棋盤（外框→向內）</h4>
+        <div id="board" class="board"></div>
+        <div id="tileInfo">位置：—</div>
+      </div>
+
+      <details>
+        <summary>📒 收支明細（目前玩家）</summary>
+        <ul id="ledger" style="text-align:left"></ul>
+      </details>
+
+      <details>
+        <summary>📊 排行（全體）</summary>
+        <ol id="leaderboard" style="text-align:left"></ol>
+      </details>
+
+      <div class="row" style="margin-top:6px">
+        <button id="downloadCsv" class="secondary">下載全體收支明細（CSV）</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="testOutput"></div>
+
+<script>
+addEventListener('DOMContentLoaded', () => {
+  const $ = id => { const el = document.getElementById(id); if(!el){ console.error('缺少元素 #'+id); } return el; };
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const randInt=(min,max,rnd=Math.random)=>Math.floor(min + rnd()*(max-min+1));
+
+  function svgAnimal(emoji, bg){
+    const svg = `<?xml version='1.0' encoding='UTF-8'?>
+      <svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'>
+        <rect width='100%' height='100%' rx='40' ry='40' fill='${bg}'/>
+        <circle cx='200' cy='150' r='120' fill='rgba(255,255,255,0.85)' />
+        <text x='50%' y='58%' dominant-baseline='middle' text-anchor='middle' font-size='160'>${emoji}</text>
+      </svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+  const CHARACTERS = [
+    { name: '小熊',   img: svgAnimal('🐻', '#FFD166') },
+    { name: '小兔',   img: svgAnimal('🐰', '#EF476F') },
+    { name: '小狗',   img: svgAnimal('🐶', '#06D6A0') },
+    { name: '小貓',   img: svgAnimal('🐱', '#118AB2') },
+    { name: '小象',   img: svgAnimal('🐘', '#8ECAE6') },
+    { name: '小狐狸', img: svgAnimal('🦊', '#FFB703') },
+    { name: '小鳥',   img: svgAnimal('🐦', '#A3D9A5') },
+    { name: '小企鵝', img: svgAnimal('🐧', '#CBD5E1') }
+  ];
+
+  const nameInput=$('nameInput');
+  const roundLimitInput=$('roundLimit');
+  const winTargetInput=$('winTarget');
+  const layoutModeSel=$('layoutMode');
+  const seedInput=$('seedInput');
+  const smoothOn=$('smoothOn');
+  const avatarsEl=$('avatars');
+  const startBtn=$('startGame');
+  const quickNewBtn=$('quickNew');
+  const reseedNewBtn=$('reseedNew');
+
+  const gameEl=$('game');
+  const currentPlayerNameEl=$('currentPlayerName');
+  const roundNowEl=$('roundNow');
+  const roundMaxEl=$('roundMax');
+  const incomeEl=$('income');
+  const expenseEl=$('expense');
+  const balanceEl=$('balance');
+  const diceEl=$('dice');
+  const resultEl=$('result');
+  const cardEl=$('card');
+  const cardAvatarEl=$('cardAvatar');
+  const characterNameEl=$('characterName');
+  const cardTitleEl=$('cardTitle');
+  const cardTextEl=$('cardText');
+  const cardAmountEl=$('cardAmount');
+  const buyBtn=$('buyBtn');
+  const okBtn=$('okBtn');
+  const nextBtn=$('nextBtn');
+  const ledgerEl=$('ledger');
+  const leaderboardEl=$('leaderboard');
+  const downloadBtn=$('downloadCsv');
+
+  const boardEl=$('board');
+  const tileInfoEl=$('tileInfo');
+  const testOutput=$('testOutput');
+
+  const wSalary=$('wSalary'), wEvent=$('wEvent'), wShop=$('wShop'), wStock=$('wStock'), wTax=$('wTax'), wDonate=$('wDonate'), wProp=$('wProp');
+  const salaryMin=$('salaryMin'), salaryMax=$('salaryMax');
+  const shopMin=$('shopMin'), shopMax=$('shopMax');
+  const taxMin=$('taxMin'), taxMax=$('taxMax');
+  const donateMin=$('donateMin'), donateMax=$('donateMax');
+  const stockMin=$('stockMin'), stockMax=$('stockMax');
+  const propMin=$('propMin'), propMax=$('propMax'), rentRateEl=$('rentRate'), needCashEl=$('needCash');
+
+  let players=[]; let roundNow=1; let roundMax=20; let winTarget=5000; let currentIndex=0; let gameOver=false;
+  const allLedger=[];
+
+  const GRID=8;
+  function spiralPath(n){ const res=[]; let top=0,bottom=n-1,left=0,right=n-1; while(left<=right && top<=bottom){ for(let c=left;c<=right;c++) res.push(top*n+c); for(let r=top+1;r<=bottom;r++) res.push(r*n+right); if(top<bottom){ for(let c=right-1;c>=left;c--) res.push(bottom*n+c);} if(left<right){ for(let r=bottom-1;r>top;r--) res.push(r*n+left);} top++; right--; bottom--; left++; } return res; }
+  const PATH=spiralPath(GRID);
+
+  const EVENTS=[
+    { title:'打工賺錢', text:'你去便利商店打工。', type:'income', amount:200 },
+    { title:'手機壞了', text:'手機突然壞掉需要維修。', type:'expense', amount:300 },
+    { title:'壓歲錢', text:'收到阿嬤的紅包。', type:'income', amount:500 },
+    { title:'遊樂園出遊', text:'和朋友去遊樂園玩。', type:'expense', amount:400 },
+    { title:'幫忙鄰居', text:'幫忙照顧寵物得到獎勵。', type:'income', amount:120 },
+    { title:'文具補給', text:'買了新鉛筆和筆記本。', type:'expense', amount:80 }
+  ];
+
+  function mulberry32(seed){ let a=(typeof seed==='number'?seed:String(seed).split('').reduce((s,ch)=>s+ch.charCodeAt(0),0))>>>0; return function(){ a+=0x6D2B79F5; let t=Math.imul(a^a>>>15,1|a); t^=t+Math.imul(t^t>>>7,61|t); return ((t^t>>>14)>>>0)/4294967296; }; }
+  function readConfig(){
+    const weights={ salary:+wSalary.value||0, event:+wEvent.value||0, shop:+wShop.value||0, stock:+wStock.value||0, tax:+wTax.value||0, donate:+wDonate.value||0, property:+wProp.value||0 };
+    const sum=Object.values(weights).reduce((a,b)=>a+b,0)||1; Object.keys(weights).forEach(k=>weights[k]=weights[k]/sum);
+    return {
+      weights,
+      salary:[+salaryMin.value||180,+salaryMax.value||420],
+      shop:[+shopMin.value||60,+shopMax.value||260],
+      tax:[+taxMin.value||80,+taxMax.value||180],
+      donate:[+donateMin.value||60,+donateMax.value||140],
+      stock:[+stockMin.value||-150,+stockMax.value||250],
+      property:{ price:[+propMin.value||600,+propMax.value||1400], rentRate: (+rentRateEl.value||18)/100 },
+      needCash: !!needCashEl.checked,
+      smooth: !!smoothOn.checked,
+      maxRepeat: 2
+    };
+  }
+  function weightedPick(rnd, weights){ const keys=Object.keys(weights); let r=rnd(); let acc=0; for(const k of keys){ acc+=weights[k]; if(r<=acc) return k; } return keys[keys.length-1]; }
+
+  let TILES=[];
+  function buildTiles(len, mode, seed){
+    const cfg=readConfig();
+    const tiles=[{ name:'起點', type:'start' }];
+    let rnd=Math.random; if(mode==='fixed') rnd=mulberry32(seed||1);
+    let propId=1;
+    const lastTypes=[];
+    for(let i=1;i<len;i++){
+      let pick; let tries=0;
+      do{
+        pick=weightedPick(rnd,cfg.weights); tries++;
+      } while(cfg.smooth && lastTypes.length>=cfg.maxRepeat && lastTypes.slice(-cfg.maxRepeat).every(t=>t===pick) && tries<30);
+
+      if(pick==='salary')      tiles.push({ name:rnd()<0.5?'零用金':'紅利', type:'salary', amount: Math.floor(readConfig().salary[0] + rnd()*(readConfig().salary[1]-readConfig().salary[0]+1)) });
+      else if(pick==='shop')   tiles.push({ name:'商店', type:'shop', min:readConfig().shop[0], max:readConfig().shop[1] });
+      else if(pick==='stock')  tiles.push({ name:'股票', type:'stock', min:readConfig().stock[0], max:readConfig().stock[1] });
+      else if(pick==='tax')    tiles.push({ name:'稅金', type:'tax', amount: Math.floor(readConfig().tax[0] + rnd()*(readConfig().tax[1]-readConfig().tax[0]+1)) });
+      else if(pick==='donate') tiles.push({ name:'捐款', type:'donate', amount: Math.floor(readConfig().donate[0] + rnd()*(readConfig().donate[1]-readConfig().donate[0]+1)) });
+      else if(pick==='property'){
+        const price=Math.floor(readConfig().property.price[0] + rnd()*(readConfig().property.price[1]-readConfig().property.price[0]+1));
+        const rent=Math.max(10, Math.floor(price * readConfig().property.rentRate));
+        tiles.push({ name:`地產 ${propId++}`, type:'property', price, rent, ownerIndex:null });
+      } else                    tiles.push({ name:'事件', type:'event' });
+
+      lastTypes.push(pick);
+    }
+    return tiles;
   }
 
-  let pos = 0;
-  const playerToken = document.createElement('div');
-  playerToken.className = 'player';
-  document.getElementById('cell-0').appendChild(playerToken);
+  function buildAvatars(){
+    avatarsEl.innerHTML='';
+    CHARACTERS.forEach(c=>{
+      const div=document.createElement('div'); div.className='avatar';
+      div.innerHTML=`<img src="${c.img}" alt="${c.name}"><span>${c.name}</span>`;
+      div.addEventListener('click',()=>{
+        const customName=nameInput.value.trim(); if(!customName){ alert('請先輸入名稱'); return; }
+        if(players.length>=8){ alert('最多 8 位玩家'); return; }
+        players.push({ ...c, name:customName, income:0, expense:0, balance:0, ledger:[], pos:0 });
+        div.querySelector('span').textContent=customName; nameInput.value=''; renderBoard();
+      });
+      avatarsEl.appendChild(div);
+    });
+  }
 
-  rollBtn.addEventListener('click', () => {
-    const roll = Math.floor(Math.random() * 6) + 1;
-    pos = (pos + roll) % (size * size);
-    document.querySelectorAll('.player').forEach(p => p.remove());
-    document.getElementById('cell-' + pos).appendChild(playerToken);
-    statusEl.textContent = `擲出 ${roll} 點，前進到格子 ${pos + 1}`;
+  function renderBoard(){
+    boardEl.innerHTML='';
+    for(let i=0;i<GRID*GRID;i++){ const cell=document.createElement('div'); cell.className='cell'; boardEl.appendChild(cell); }
+    for(let k=0;k<TILES.length;k++){
+      const gridIndex=PATH[k]; const cell=boardEl.children[gridIndex]; const tile=document.createElement('div'); tile.className='tile';
+      const own = (TILES[k].type==='property' && TILES[k].ownerIndex!=null) ? `<span style="float:right">🏠</span>` : '';
+      let sub='';
+      if(TILES[k].type==='property'){ sub = `<small style="margin-left:6px">$${TILES[k].price}/租$${TILES[k].rent}</small>`; }
+      else if(TILES[k].amount){ sub = `<small style="margin-left:6px">$${TILES[k].amount}</small>`; }
+      tile.innerHTML=`<h4>${k+1}. ${TILES[k].name} ${own}${sub}</h4><div class="pills" id="tile-${k}"></div>`;
+      cell.innerHTML=''; cell.appendChild(tile);
+    }
+    players.forEach(pl=>{ const wrap=document.getElementById('tile-'+(pl.pos||0)); if(wrap){ const pill=document.createElement('span'); pill.className='pill'; pill.textContent=(pl.name||'P').slice(0,4); wrap.appendChild(pill);} });
+    const cp=players[currentIndex]; if(cp){ const t=TILES[cp.pos||0]; tileInfoEl.textContent=`位置：第 ${(cp.pos||0)+1} 格（${t.name}）`; }
+  }
+
+  function renderStats(){
+    const p=players[currentIndex];
+    currentPlayerNameEl.textContent=p?.name||'';
+    incomeEl.textContent=p?.income??0; expenseEl.textContent=p?.expense??0; balanceEl.textContent=p?.balance??0;
+    ledgerEl.innerHTML=''; if(p){ p.ledger.slice().reverse().forEach(item=>{ const li=document.createElement('li'); li.textContent=`${item.time}｜${p.name}｜🎲${item.roll}｜${item.title}：${item.type==='income'?'+':'-'}${item.amount}｜餘額 ${item.balance}`; li.style.color=item.type==='income'?'#2e7d32':'#c62828'; ledgerEl.appendChild(li); }); }
+    leaderboardEl.innerHTML=''; [...players].sort((a,b)=>b.balance-a.balance).forEach(pp=>{ const li=document.createElement('li'); li.textContent=`${pp.name}：${pp.balance}`; leaderboardEl.appendChild(li); });
+    roundNowEl.textContent=roundNow; roundMaxEl.textContent=roundMax; renderBoard();
+  }
+
+  function pushLedger(p, roll, title, delta){
+    const entry={ time:new Date().toLocaleString(), player:p.name, roll, title, type: delta>=0?'income':'expense', amount:Math.abs(delta), balance:p.balance };
+    p.ledger.push(entry); allLedger.push(entry);
+  }
+  function applyTileEffect(p, roll){
+    const tile=TILES[p.pos||0]; buyBtn.style.display='none'; buyBtn.onclick=null;
+    let title=''; let text=''; let delta=0;
+    const cfg=readConfig();
+    switch(tile.type){
+      case 'start':
+        title='起點'; text='回到起點，深呼吸準備出發。'; delta=0; break;
+      case 'salary': {
+        const amt = tile.amount ?? Math.floor(cfg.salary[0] + Math.random()*(cfg.salary[1]-cfg.salary[0]+1));
+        title=tile.name; text='領到零用金/紅利！'; delta=+amt; p.income+=amt; p.balance+=amt; break; }
+      case 'tax': {
+        const amt = tile.amount ?? Math.floor(cfg.tax[0] + Math.random()*(cfg.tax[1]-cfg.tax[0]+1));
+        title=tile.name; text='繳交稅金。'; delta=-amt; p.expense+=amt; p.balance-=amt; break; }
+      case 'donate': {
+        const amt = tile.amount ?? Math.floor(cfg.donate[0] + Math.random()*(cfg.donate[1]-cfg.donate[0]+1));
+        title=tile.name; text='做公益捐款，幫助需要的人。'; delta=-amt; p.expense+=amt; p.balance-=amt; break; }
+      case 'shop': {
+        const cost = Math.floor(cfg.shop[0] + Math.random()*(cfg.shop[1]-cfg.shop[0]+1));
+        title='購物花費'; text='在商店買了需要的東西。'; delta= -cost; p.expense+=cost; p.balance-=cost; break; }
+      case 'stock': {
+        const change = Math.floor(cfg.stock[0] + Math.random()*(cfg.stock[1]-cfg.stock[0]+1));
+        title= change>=0 ? '股票上漲' : '股票下跌'; text = change>=0 ? '投資有成！' : '市場震盪…'; delta = change; if(change>=0){p.income+=change;p.balance+=change;}else{p.expense+=-change;p.balance+=change;} break; }
+      case 'property': {
+        const owner=tile.ownerIndex; const price=tile.price; const rent=tile.rent; const me=currentIndex;
+        if(owner==null){
+          title=tile.name; text=`無人擁有，可購買（價格 $${price}，租金 $${rent}）。`;
+          delta=0;
+          buyBtn.style.display='inline-block';
+          buyBtn.textContent = `購買（$${price}）`;
+          buyBtn.onclick = ()=>{
+            if(cfg.needCash && p.balance < price){ alert('現金不足，無法購買。'); return; }
+            p.expense += price; p.balance -= price; pushLedger(p, roll, `購買 ${tile.name}`, -price);
+            tile.ownerIndex = me; renderStats();
+            cardTextEl.textContent = `已購買 ${tile.name}！租金 $${rent}（他人停留需支付）。`; cardAmountEl.textContent = '支出 -'+price; cardAmountEl.style.color='#c62828'; buyBtn.style.display='none';
+          };
+        } else if(owner!==me){
+          title=tile.name; text=`此地產屬於 ${players[owner].name}，需支付租金 $${rent}。`;
+          delta = -rent; p.expense+=rent; p.balance-=rent; players[owner].income+=rent; players[owner].balance+=rent;
+        } else {
+          title=tile.name; text='你擁有這個地產，免費休息。'; delta=0;
+        }
+        break; }
+      case 'event': default: {
+        const ev=EVENTS[Math.floor(Math.random()*EVENTS.length)]; title=ev.title; text=ev.text; delta= ev.type==='income'? ev.amount : -ev.amount; if(ev.type==='income'){p.income+=ev.amount;p.balance+=ev.amount;}else{p.expense+=ev.amount;p.balance-=ev.amount;} break; }
+    }
+
+    cardTitleEl.textContent=title; cardTextEl.textContent=text; cardAmountEl.textContent=(delta>=0?'收入 +':'支出 ')+Math.abs(delta); cardAmountEl.style.color=delta>=0?'#2e7d32':'#c62828'; cardAvatarEl.src=p.img; characterNameEl.textContent=p.name; cardEl.style.display='block';
+
+    pushLedger(p, roll, title, delta);
+  }
+
+  function startGame({reseed=false}={}){
+    if(players.length<1){ alert('請至少加入 1 位玩家'); return; }
+    roundMax = clamp(parseInt(roundLimitInput.value||'20',10),1,50);
+    winTarget = Math.max(0, parseInt(winTargetInput.value||'5000',10));
+    roundNow=1; currentIndex=0; gameOver=false; allLedger.length=0;
+
+    const mode=layoutModeSel.value; const seed=seedInput.value.trim();
+    if(reseed || !TILES || TILES.length!==PATH.length){ TILES = buildTiles(PATH.length, mode, seed); }
+    else if(mode==='fixed'){ TILES = buildTiles(PATH.length, mode, seed); }
+
+    document.getElementById('setup').style.display='block'; gameEl.style.display='block';
+    players = players.map(p=>({ ...p, pos:0, income:0, expense:0, balance:0, ledger:[] }));
+    renderStats();
+  }
+
+  function advanceTurn(){
+    cardEl.style.display='none'; if(!players.length || gameOver) return;
+    currentIndex = (currentIndex + 1) % players.length;
+    if(currentIndex===0){ roundNow+=1; if(roundNow>roundMax){ const top=[...players].sort((a,b)=>b.balance-a.balance)[0]; alert(`⏱️ 達到 ${roundMax} 回合，${top.name} 以 ${top.balance} 元獲勝！`); gameOver=true; return; } }
+    renderStats(); resultEl.textContent='';
+  }
+
+  const diceEl=$('dice');
+  diceEl.addEventListener('click',()=>{
+    if(gameOver){ return; }
+    if(!players.length){ alert('請先加入玩家'); return; }
+    const p=players[currentIndex]; const roll=Math.floor(Math.random()*6)+1; resultEl.textContent=`你擲出了：${roll}`;
+    p.pos = ((p.pos||0)+roll) % PATH.length; renderBoard();
+    applyTileEffect(p, roll);
+    if(winTarget>0 && p.balance>=winTarget){ alert(`🎉 恭喜 ${p.name} 達到 ${winTarget} 元，獲勝！`); gameOver=true; }
   });
+
+  const okBtn=$('okBtn'); const nextBtn=$('nextBtn');
+  okBtn.addEventListener('click', advanceTurn);
+  nextBtn.addEventListener('click', advanceTurn);
+
+  function toCSV(rows){ const esc=v=>'"'+String(v).replaceAll('"','""')+'"'; const header=['時間','玩家','骰子','事件','型別','金額','結餘']; return [header.map(esc).join(',')].concat(rows.map(r=>[r.time,r.player,r.roll,r.title,r.type,r.amount,r.balance].map(esc).join(','))).join('\n'); }
+  const downloadBtn=$('downloadCsv');
+  downloadBtn.addEventListener('click',()=>{ if(!allLedger.length){ alert('目前沒有可下載的收支紀錄。'); return; } const blob=new Blob([toCSV(allLedger)],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`理財小富翁_收支明細_${Date.now()}.csv`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); });
+
+  const quickNewBtn=$('quickNew'); const reseedNewBtn=$('reseedNew'); const startBtn=$('startGame');
+  quickNewBtn.addEventListener('click',()=>startGame({reseed:false}));
+  reseedNewBtn.addEventListener('click',()=>startGame({reseed:true}));
+  startBtn.addEventListener('click',()=>startGame({reseed:true}));
+
+  buildAvatars();
+
+  function logTest(msg){ testOutput.style.display='block'; testOutput.textContent += msg + '\n'; }
+  function runTests(){
+    try{
+      logTest('開始測試…');
+      console.assert(PATH.length===64,'PATH 應為 64'); const uniq=new Set(PATH); console.assert(uniq.size===64,'PATH 不可重複'); console.assert(Math.min(...PATH)===0 && Math.max(...PATH)===63,'PATH 範圍 0..63');
+      TILES = buildTiles(PATH.length,'fixed','TEST'); console.assert(TILES.length===64,'TILES 長度正確'); console.assert(TILES[0].type==='start','第一格應為起點');
+      players=[ { ...CHARACTERS[0], name:'小明', pos:0, income:0, expense:0, balance:0, ledger:[] }, { ...CHARACTERS[1], name:'小華', pos:0, income:0, expense:0, balance:0, ledger:[] } ];
+      startGame({reseed:false}); const before=players[0].ledger.length; diceEl.click(); const after=players[0].ledger.length; console.assert(after===before+1,'擲骰後應記一筆'); logTest('✔ 擲骰紀錄增加 OK');
+      nextBtn.click(); console.assert(currentPlayerNameEl.textContent==='小華','應切換到小華'); logTest('✔ 換人 OK');
+      const types=TILES.map(t=>t.type); let bad=false; for(let i=2;i<types.length;i++){ if(types[i]===types[i-1] && types[i-1]===types[i-2]){ bad=true; break; } } console.assert(!bad,'不應有三連相同類型'); logTest('✔ 平滑分佈 OK');
+      logTest('全部測試通過');
+    }catch(e){ logTest('❌ 測試失敗：'+(e?.message||e)); console.error(e); }
+  }
+  if(location.hash==='#test'){ runTests(); }
+});
 </script>
 </body>
 </html>

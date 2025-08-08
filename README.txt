@@ -1,10 +1,5 @@
-# 理財小富翁遊戲
+# 理財小富翁（動物版）— 部署說明
 
-## 使用方法
-1. 將 index.html 上傳到 GitHub Pages 或 Netlify。
-2. 或直接用瀏覽器打開 index.html 進行本機遊戲測試。
-
-## 功能
-- 8x8 棋盤
-- 單人擲骰移動棋子
-- 可擴充事件卡、地產購買、收支統計等功能
+1) 直接開啟：雙擊 index.html（或拖到瀏覽器）即可本機遊玩。
+2) GitHub Pages：建立 `money-game` 公開 repo，上傳 index.html → Settings → Pages：main / (root) → Save → 幾分鐘後開 https://Canny-shen.github.io/money-game/
+3) Netlify：到 https://app.netlify.com/drop 拖曳 index.html，立即取得網址。
