@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>理財小富翁遊戲</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f0f8ff; text-align: center; }
+  .board { display: grid; grid-template-columns: repeat(8, 50px); grid-template-rows: repeat(8, 50px); gap: 2px; margin: 20px auto; }
+  .cell { background: white; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .player { background: yellow; border-radius: 50%; width: 20px; height: 20px; }
+  button { margin: 10px; padding: 10px 15px; font-size: 16px; }
+</style>
+</head>
+<body>
+  <h1>理財小富翁遊戲</h1>
+  <div class="board" id="board"></div>
+  <p id="status">請擲骰子開始遊戲</p>
+  <button id="rollBtn">擲骰子</button>
+<script>
+  const boardEl = document.getElementById('board');
+  const statusEl = document.getElementById('status');
+  const rollBtn = document.getElementById('rollBtn');
+
+  const size = 8;
+  for (let i = 0; i < size * size; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.id = 'cell-' + i;
+    cell.textContent = i + 1;
+    boardEl.appendChild(cell);
+  }
+
+  let pos = 0;
+  const playerToken = document.createElement('div');
+  playerToken.className = 'player';
+  document.getElementById('cell-0').appendChild(playerToken);
+
+  rollBtn.addEventListener('click', () => {
+    const roll = Math.floor(Math.random() * 6) + 1;
+    pos = (pos + roll) % (size * size);
+    document.querySelectorAll('.player').forEach(p => p.remove());
+    document.getElementById('cell-' + pos).appendChild(playerToken);
+    statusEl.textContent = `擲出 ${roll} 點，前進到格子 ${pos + 1}`;
+  });
+</script>
+</body>
+</html>
