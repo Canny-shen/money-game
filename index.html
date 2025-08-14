@@ -3,157 +3,181 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>理財小富翁（動物版）— 20 檔股票 + 地產升級 + 資產淨值排名</title>
+<title>理財小富翁（動物版）— 20 檔股票 + 地產升級 + 資產淨值（含股票）</title>
 <style>
   :root{
-    --primary:#5d9cec; --panel:#ffffff; --bg:#f0f8ff; --ink:#0f172a; --muted:#64748b;
+    --primary:#5d9cec; --panel:#ffffff; --bg:#f0f8ff; --ink:#0f172a;
     --accent:#8fb3ff; --good:#2e7d32; --bad:#c62828;
   }
   *{box-sizing:border-box}
-  body{font-family:"Noto Sans TC",Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:12px;text-align:center}
-  h1{margin:6px 0 10px}
-  .grid{display:grid;grid-template-columns:repeat(4, minmax(120px,1fr));gap:10px;max-width:1200px;margin:0 auto}
-  .panel{background:var(--panel);border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.12);padding:12px;text-align:left}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  label{font-size:14px}
+  body{font-family:"Noto Sans TC",Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:12px}
+
+  /* 版面：左控制、右棋盤 */
+  .layout{
+    display:flex; gap:16px; align-items:flex-start; justify-content:center;
+    max-width:1400px; margin:0 auto;
+  }
+  .leftCol{flex:0 0 520px; display:flex; flex-direction:column; gap:12px}
+  .rightCol{flex:0 1 auto}
+
+  .panel{
+    background:var(--panel); border-radius:14px;
+    box-shadow:0 6px 18px rgba(0,0,0,.12); padding:12px;
+  }
+  h1{margin:0 0 12px; text-align:center}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
   input,select{padding:6px;border-radius:8px;border:1px solid #cbd5e1}
   input[type=number]{width:120px}
   button{padding:8px 12px;border:0;border-radius:10px;background:var(--primary);color:#fff;font-size:14px;cursor:pointer}
   button.secondary{background:#e2e8f0;color:#111}
-  button.ghost{background:transparent;border:1px solid #cbd5e1;color:#111}
 
   /* 頭像卡 */
-  #avatars{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:10px}
+  #avatars{display:flex;flex-wrap:wrap;gap:10px}
   .avatar{position:relative;width:150px;border:2px solid #ccc;border-radius:12px;background:#fff8dc;cursor:pointer;padding:6px;display:flex;flex-direction:column;align-items:center;gap:6px;transition:transform .15s,border-color .2s}
   .avatar:hover{transform:translateY(-2px);border-color:var(--primary)}
   .avatar .imgWrap{position:relative;width:100%}
   .avatar img{width:100%;height:auto;object-fit:contain;border-radius:10px}
   .avatar span{font-size:14px;font-weight:700}
-  .avatar .pickedName{position:absolute;left:6px;right:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-weight:700;font-size:14px;padding:4px 6px;border-radius:8px;text-align:center;display:none}
+  .avatar .pickedName{
+    position:absolute;left:6px;right:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;
+    font-weight:700;font-size:14px;padding:4px 6px;border-radius:8px;text-align:center;display:none
+  }
   .avatar.selected{border-color:var(--primary);box-shadow:0 0 0 3px rgba(93,156,236,.25) inset}
   .avatar.selected .pickedName{display:block}
   .avatar:disabled{opacity:.6;cursor:not-allowed}
 
   /* 資訊列 */
-  .stats{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;margin:6px auto}
+  .stats{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
   .chip{background:#fff;border-radius:999px;padding:6px 10px;box-shadow:0 2px 8px rgba(0,0,0,.07);font-size:13px}
   .good{color:var(--good)} .bad{color:var(--bad)}
 
   /* 骰子與卡 */
-  #dice{font-size:72px;cursor:pointer;user-select:none;margin-top:6px}
-  #result{margin-top:6px;font-size:18px;font-weight:700}
-  #card{display:none;border:2px solid var(--accent);padding:12px;margin:10px auto 0;width:min(980px,95vw);border-radius:14px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.12);text-align:left}
+  #dice{font-size:72px;cursor:pointer;user-select:none;margin-top:6px;text-align:center}
+  #result{margin-top:6px;font-size:18px;font-weight:700;text-align:center}
+  #card{display:none;border:2px solid var(--accent);padding:12px;margin:10px 0 0;border-radius:14px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.12)}
   #card h3{margin:4px 0 6px}
-  #card .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   #card .amount{font-weight:700}
 
-  /* 8x8 螺旋棋盤（加大 70px） */
-  .board{margin:10px auto;display:grid;grid-template-columns:repeat(8, 70px);grid-template-rows:repeat(8, 70px);gap:4px;justify-content:center}
+  /* 棋盤區域（在右欄），放大且不重疊 */
+  .boardWrap{position:sticky; top:8px} /* 右側跟隨視窗 */
+  .boardTitle{margin:0 0 8px}
+  .board{
+    display:grid; grid-template-columns:repeat(8, 70px); grid-template-rows:repeat(8, 70px);
+    gap:4px; background:#dbeafe; padding:6px; border-radius:12px;
+  }
   .cell{background:#eaf4ff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#333}
   .tile{background:#fff;border:2px solid var(--accent);border-radius:10px;padding:3px;width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between}
   .tile h4{margin:0 2px 2px;font-size:11px;line-height:1.15}
   .pills{display:flex;flex-wrap:wrap;gap:2px;padding:2px 2px 0}
   .pill{display:inline-flex;flex-direction:column;align-items:center;font-size:9px;background:#eef3ff;border:1px solid #c7d8ff;border-radius:6px;padding:1px 3px}
   .pill .nm{font-size:9px;line-height:1;margin-top:1px;color:#111}
-
   #tileInfo{margin-top:6px;font-size:14px}
-  details{max-width:1200px;margin:8px auto;text-align:left}
-  summary{cursor:pointer}
-  #ledger{max-height:240px;overflow:auto}
-  #testOutput{max-width:1200px;margin:10px auto;text-align:left;white-space:pre-wrap;background:#fff;border:1px dashed #bbb;padding:8px;display:none}
 
-  @media (max-width: 980px){
-    .grid{grid-template-columns:1fr}
+  details{margin-top:8px}
+  summary{cursor:pointer}
+
+  /* RWD：小螢幕改為上下排列避免擠在一起 */
+  @media (max-width: 1020px){
+    .layout{flex-direction:column}
+    .leftCol{width:100%}
+    .rightCol{width:100%}
+    .board{grid-template-columns:repeat(8, 52px); grid-template-rows:repeat(8, 52px)}
   }
 </style>
 </head>
 <body>
   <h1>🎲 理財小富翁（動物版）</h1>
 
-  <section class="grid">
-    <div class="panel" id="setup">
-      <h3>玩家與規則</h3>
-      <div class="row">
-        <input id="nameInput" placeholder="請輸入玩家名稱"/>
-        <div>初始金額：<input id="startMoney" type="number" min="0" step="100" value="3000" style="width:120px"></div>
-        <div>回合上限：<input type="number" id="roundLimit" min="1" max="50" value="20" style="width:90px"></div>
-        <div>勝利金額：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:100px"></div>
-      </div>
-
-      <p style="margin:6px 0">點下方動物加入（最多 8 人）：</p>
-      <div id="avatars"></div>
-
-      <div class="row" style="margin-top:8px">
-        <button id="startGame">開始遊戲</button>
-        <button id="quickNew" class="secondary">新局（保留玩家，不變更棋盤）</button>
-        <button id="reseedNew" class="secondary">新局＋重抽棋盤</button>
-      </div>
-    </div>
-
-    <div class="panel" id="game" style="display:none">
-      <h3>目前玩家： <span id="currentPlayerName"></span></h3>
-      <div class="row"><span>回合：<span id="roundNow">1</span>/<span id="roundMax">20</span></span></div>
-      <div class="stats">
-        <div class="chip good">總收入：<span id="income">0</span></div>
-        <div class="chip bad">總支出：<span id="expense">0</span></div>
-        <div class="chip">現金餘額：<strong id="balance">0</strong></div>
-        <div class="chip">資產淨值(含地產)：<strong id="networth">0</strong></div>
-        <div class="chip">股票：<strong id="stockSummary">—</strong></div>
-      </div>
-
-      <div id="dice" title="點我擲骰">🎲</div>
-      <div id="result"></div>
-
-      <div id="card">
+  <div class="layout">
+    <!-- 左：控制面板（不與棋盤重疊） -->
+    <div class="leftCol">
+      <div class="panel" id="setup">
+        <h3>玩家與規則</h3>
         <div class="row">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
-            <img id="cardAvatar" alt="角色" style="width:72px;height:72px;border-radius:12px;object-fit:cover"/>
-            <div id="characterName" style="font-weight:600"></div>
-          </div>
-          <div style="flex:1;min-width:280px">
-            <h3 id="cardTitle">事件卡</h3>
-            <p id="cardText">內容會在這裡出現</p>
-            <p class="amount" id="cardAmount"></p>
+          <input id="nameInput" placeholder="請輸入玩家名稱"/>
+          <div>初始金額：<input id="startMoney" type="number" min="0" step="100" value="3000" style="width:120px"></div>
+          <div>回合上限：<input type="number" id="roundLimit" min="1" max="50" value="20" style="width:90px"></div>
+          <div>勝利金額（現金）：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:120px"></div>
+        </div>
 
-            <!-- 股票操作列（股票格顯示） -->
-            <div id="stockActions" class="row" style="display:none">
-              <div>📈 標的：
-                <select id="stockSelect"></select>
-              </div>
-              <div>市價：<b id="stockPrice"></b></div>
-              <div>數量：<input id="stockQty" type="number" min="1" value="1" style="width:80px"></div>
-              <button id="btnBuy">買入</button>
-              <button id="btnSell" class="secondary">賣出</button>
-            </div>
+        <p style="margin:6px 0">點下方動物加入（最多 8 人）：</p>
+        <div id="avatars"></div>
 
-            <div class="row">
-              <button id="buyBtn" class="secondary" style="display:none">購買/升級地產</button>
-              <button id="okBtn">知道了</button>
-              <button id="nextBtn" class="secondary">下一位</button>
-            </div>
-          </div>
+        <div class="row" style="margin-top:8px">
+          <button id="startGame">開始遊戲</button>
+          <button id="quickNew" class="secondary">新局（保留玩家，不變更棋盤）</button>
+          <button id="reseedNew" class="secondary">新局＋重抽棋盤</button>
         </div>
       </div>
 
-      <div class="panel" style="margin-top:10px">
-        <h4>8×8 螺旋棋盤（外框→向內）</h4>
+      <div class="panel" id="game" style="display:none">
+        <h3>目前玩家： <span id="currentPlayerName"></span></h3>
+        <div class="row"><span>回合：<span id="roundNow">1</span>/<span id="roundMax">20</span></span></div>
+        <div class="stats">
+          <div class="chip good">總收入：<span id="income">0</span></div>
+          <div class="chip bad">總支出：<span id="expense">0</span></div>
+          <div class="chip">現金餘額：<strong id="balance">0</strong></div>
+          <div class="chip">資產淨值：<strong id="networth">0</strong></div>
+          <div class="chip">股票：<strong id="stockSummary">—</strong></div>
+        </div>
+
+        <div id="dice" title="點我擲骰">🎲</div>
+        <div id="result"></div>
+
+        <div id="card">
+          <div class="row">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+              <img id="cardAvatar" alt="角色" style="width:72px;height:72px;border-radius:12px;object-fit:cover"/>
+              <div id="characterName" style="font-weight:600"></div>
+            </div>
+            <div style="flex:1;min-width:280px">
+              <h3 id="cardTitle">事件卡</h3>
+              <p id="cardText">內容會在這裡出現</p>
+              <p class="amount" id="cardAmount"></p>
+
+              <!-- 股票操作列（股票格顯示） -->
+              <div id="stockActions" class="row" style="display:none">
+                <div>📈 標的：
+                  <select id="stockSelect"></select>
+                </div>
+                <div>市價：<b id="stockPrice"></b></div>
+                <div>數量：<input id="stockQty" type="number" min="1" value="1" style="width:80px"></div>
+                <button id="btnBuy">買入</button>
+                <button id="btnSell" class="secondary">賣出</button>
+              </div>
+
+              <div class="row">
+                <button id="buyBtn" class="secondary" style="display:none">購買/升級地產</button>
+                <button id="okBtn">知道了</button>
+                <button id="nextBtn" class="secondary">下一位</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <details>
+          <summary>📒 收支明細（目前玩家）</summary>
+          <ul id="ledger" style="text-align:left;max-height:240px;overflow:auto;margin:8px 0 0"></ul>
+        </details>
+
+        <details>
+          <summary>📊 排行（淨值：現金+地產+股票）</summary>
+          <ol id="leaderboard" style="text-align:left;margin:8px 0 0"></ol>
+        </details>
+      </div>
+    </div>
+
+    <!-- 右：棋盤（固定在右側，不與左側重疊） -->
+    <div class="rightCol">
+      <div class="panel boardWrap">
+        <h3 class="boardTitle">8×8 螺旋棋盤（外框→向內）</h3>
         <div id="board" class="board"></div>
         <div id="tileInfo">位置：—</div>
       </div>
-
-      <details>
-        <summary>📒 收支明細（目前玩家）</summary>
-        <ul id="ledger" style="text-align:left"></ul>
-      </details>
-
-      <details>
-        <summary>📊 排行（全體，以資產淨值排序）</summary>
-        <ol id="leaderboard" style="text-align:left"></ol>
-      </details>
     </div>
-  </section>
+  </div>
 
-  <div id="testOutput"></div>
+  <div id="testOutput" style="display:none;white-space:pre-wrap;background:#fff;border:1px dashed #bbb;padding:8px;max-width:1200px;margin:10px auto"></div>
 
 <script>
 addEventListener('DOMContentLoaded', () => {
@@ -321,7 +345,7 @@ addEventListener('DOMContentLoaded', () => {
   }
   let TILES=buildTiles(PATH.length);
 
-  // === 幫助計算：地產總價值（房價×等級） ===
+  // === 幫助計算：地產價值 / 股票市值 / 資產淨值 ===
   function propertyValueForPlayer(playerIndex){
     let total=0;
     TILES.forEach(t=>{
@@ -331,8 +355,18 @@ addEventListener('DOMContentLoaded', () => {
     });
     return total;
   }
+  function stockValueOf(player){
+    let total=0;
+    if(!player?.stocks) return 0;
+    for(const sym in player.stocks){
+      const qty = player.stocks[sym]||0;
+      const px = MARKET.price[sym]||0;
+      total += qty * px;
+    }
+    return total;
+  }
   function netWorthOf(player, playerIndex){
-    return (player.balance||0) + propertyValueForPlayer(playerIndex);
+    return (player.balance||0) + propertyValueForPlayer(playerIndex) + stockValueOf(player);
   }
 
   // === UI：角色頭像 ===
@@ -368,7 +402,7 @@ addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // === 棋盤繪製 ===
+  // === 棋盤繪製（右側） ===
   function renderBoard(){
     boardEl.innerHTML='';
     for(let i=0;i<GRID*GRID;i++){
@@ -397,7 +431,7 @@ addEventListener('DOMContentLoaded', () => {
     }
 
     // 玩家標記 + 名稱
-    players.forEach((pl,idx)=>{
+    players.forEach((pl)=>{
       const wrap=document.getElementById('tile-'+(pl.pos||0));
       if(wrap){
         const pill=document.createElement('span'); pill.className='pill';
@@ -421,7 +455,9 @@ addEventListener('DOMContentLoaded', () => {
     balanceEl.textContent=money(p?.balance??0);
 
     if(p){
-      networthEl.textContent = money(netWorthOf(p, currentIndex));
+      const pv = propertyValueForPlayer(currentIndex);
+      const sv = stockValueOf(p);
+      networthEl.textContent = money((p.balance||0) + pv + sv);
       const held = Object.entries(p.stocks).filter(([sym,qty])=>qty>0).slice(0,4).map(([sym,qty])=>`${sym}:${qty}`).join('，');
       stockSummaryEl.textContent = held || '—';
     }else{
@@ -439,13 +475,14 @@ addEventListener('DOMContentLoaded', () => {
         ledgerEl.appendChild(li);
       });
     }
-    // 排行（依資產淨值排序）
+    // 排行（依資產淨值排序，含股票市值）
     leaderboardEl.innerHTML='';
-    const ranked = players.map((pp,idx)=>({ pp, idx, nw: netWorthOf(pp, idx) })).sort((a,b)=>b.nw-a.nw);
+    const ranked = players.map((pp,idx)=>{
+      return { pp, idx, pv: propertyValueForPlayer(idx), sv: stockValueOf(pp) };
+    }).map(r=>({ ...r, nw: (r.pp.balance||0)+r.pv+r.sv })).sort((a,b)=>b.nw-a.nw);
     ranked.forEach(r=>{
-      const pv = propertyValueForPlayer(r.idx);
       const li=document.createElement('li'); 
-      li.textContent=`${r.pp.name}：資產淨值 ${money(r.nw)}（餘額 ${money(r.pp.balance)}｜地產 ${money(pv)}）`;
+      li.textContent=`${r.pp.name}：淨值 ${money(r.nw)}（現金 ${money(r.pp.balance)}｜地產 ${money(r.pv)}｜股票 ${money(r.sv)}）`;
       leaderboardEl.appendChild(li);
     });
 
@@ -488,18 +525,14 @@ addEventListener('DOMContentLoaded', () => {
         title='購物花費'; text='在商店買了需要的東西。'; delta=-cost; p.expense+=cost; p.balance-=cost; break; }
 
       case 'stock': {
-        // 這裡不再 tick 市場（已在回合開始時 tickAll）
-        // 產生下拉清單
+        // 產生下拉清單（市場已在回合開始 tickAll）
         stockSelectEl.innerHTML='';
         MARKET.list.forEach(s=>{
           const opt=document.createElement('option');
           opt.value=s.symbol; opt.textContent=`${s.symbol}（${s.name}）`;
           stockSelectEl.appendChild(opt);
         });
-
-        // 自動推薦一檔並預選
-        const pickIndex = Math.floor(Math.random()*MARKET.list.length);
-        stockSelectEl.selectedIndex = pickIndex;
+        stockSelectEl.selectedIndex = Math.floor(Math.random()*MARKET.list.length);
 
         const updatePriceUI = () => {
           const sym = stockSelectEl.value;
@@ -513,7 +546,6 @@ addEventListener('DOMContentLoaded', () => {
         title=`股票：選擇標的`;
         delta=0;
         stockActionsEl.style.display='flex';
-
         stockSelectEl.onchange = updatePriceUI;
 
         btnBuy.onclick=()=>{
@@ -522,7 +554,7 @@ addEventListener('DOMContentLoaded', () => {
           const px = MARKET.price[sym];
           const cost = qty * px;
           if(p.balance < cost){ alert('現金不足，無法買入。'); return; }
-          p.balance -= cost; p.expense += cost; p.stocks[sym] += qty;
+          p.balance -= cost; p.expense += cost; p.stocks[sym] = (p.stocks[sym]||0) + qty;
           pushLedger(p, roll, `買入 ${sym} ${qty} 股（$ ${money(px)}）`, -cost);
           renderStats();
           cardTextEl.textContent = `買入成功，持有 ${sym}：${p.stocks[sym]} 股。`;
@@ -530,7 +562,7 @@ addEventListener('DOMContentLoaded', () => {
         btnSell.onclick=()=>{
           const sym = stockSelectEl.value;
           const qty = Math.max(1, parseInt(stockQtyEl.value||'1',10));
-          if(p.stocks[sym] < qty){ alert('持股不足。'); return; }
+          if((p.stocks[sym]||0) < qty){ alert('持股不足。'); return; }
           const px = MARKET.price[sym];
           const proceeds = qty * px;
           p.stocks[sym] -= qty; p.balance += proceeds; p.income += proceeds;
@@ -594,7 +626,7 @@ addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 顯示卡片
+    // 顯示卡片（左側，不會壓到右邊棋盤）
     cardTitleEl.textContent=title;
     cardTextEl.textContent=text;
     cardAmountEl.textContent=(delta>=0?'收入 +':'支出 ')+money(Math.abs(delta));
@@ -631,11 +663,13 @@ addEventListener('DOMContentLoaded', () => {
   }
 
   function endGameByRounds(){
-    // 依資產淨值決勝（餘額 + 地產價值），不把股票未實現市值計入（依你的需求）
-    const ranked = players.map((pp,idx)=>({ pp, idx, nw: netWorthOf(pp, idx) })).sort((a,b)=>b.nw-a.nw);
+    // 依新「資產淨值（含股票）」決勝
+    const ranked = players.map((pp,idx)=>{
+      return { pp, idx, pv: propertyValueForPlayer(idx), sv: stockValueOf(pp) };
+    }).map(r=>({ ...r, nw: (r.pp.balance||0)+r.pv+r.sv }))
+      .sort((a,b)=>b.nw-a.nw);
     const top = ranked[0];
-    const pv = propertyValueForPlayer(top.idx);
-    alert(`⏱️ 達到 ${roundMax} 回合，${top.pp.name} 以資產淨值 ${money(top.nw)} 元獲勝！（餘額 ${money(top.pp.balance)}｜地產 ${money(pv)}）`);
+    alert(`⏱️ 達到 ${roundMax} 回合，${top.pp.name} 以資產淨值 ${money(top.nw)} 元獲勝！（現金 ${money(top.pp.balance)}｜地產 ${money(top.pv)}｜股票 ${money(top.sv)}）`);
     gameOver=true;
   }
 
@@ -664,9 +698,10 @@ addEventListener('DOMContentLoaded', () => {
     const roll=Math.floor(Math.random()*6)+1; resultEl.textContent=`你擲出了：${roll}`;
     p.pos = ((p.pos||0)+roll) % PATH.length; renderBoard();
     applyTileEffect(p, roll);
-    // 勝利條件仍以「餘額達標」為主（如需改為淨值達標可告訴我）
+
+    // 勝利條件（現金判定）
     if(winTarget>0 && p.balance>=winTarget){ 
-      alert(`🎉 恭喜 ${p.name} 餘額達到 $${money(winTarget)}，獲勝！`); 
+      alert(`🎉 恭喜 ${p.name} 現金餘額達到 $${money(winTarget)}，獲勝！`); 
       gameOver=true; 
     }
   });
