@@ -59,7 +59,7 @@
   #card .amount{font-weight:700}
 
   /* 棋盤區域（在右欄），放大且不重疊 */
-  .boardWrap{position:sticky; top:8px} /* 右側跟隨視窗 */
+  .boardWrap{position:sticky; top:8px}
   .boardTitle{margin:0 0 8px}
   .board{
     display:grid; grid-template-columns:repeat(8, 70px); grid-template-rows:repeat(8, 70px);
@@ -89,7 +89,7 @@
   <h1>🎲 理財小富翁（動物版）</h1>
 
   <div class="layout">
-    <!-- 左：控制面板（不與棋盤重疊） -->
+    <!-- 左：面板列（遊戲開始後，setup 會移到 game 下方） -->
     <div class="leftCol">
       <div class="panel" id="setup">
         <h3>玩家與規則</h3>
@@ -220,6 +220,9 @@ addEventListener('DOMContentLoaded', () => {
   const reseedNewBtn=$('reseedNew');
 
   const gameEl=$('game');
+  const setupEl=$('setup');
+  const leftCol=document.querySelector('.leftCol');
+
   const currentPlayerNameEl=$('currentPlayerName');
   const roundNowEl=$('roundNow');
   const roundMaxEl=$('roundMax');
@@ -626,7 +629,7 @@ addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 顯示卡片（左側，不會壓到右邊棋盤）
+    // 顯示卡片（左側）
     cardTitleEl.textContent=title;
     cardTextEl.textContent=text;
     cardAmountEl.textContent=(delta>=0?'收入 +':'支出 ')+money(Math.abs(delta));
@@ -657,13 +660,19 @@ addEventListener('DOMContentLoaded', () => {
       return np;
     });
 
-    $('setup').style.display='block';
+    // 顯示遊戲面板
     gameEl.style.display='block';
+
+    // ★ 把「玩家與規則」移到「遊戲面板」下方（只要在左欄重新 append 一次即可）
+    if(leftCol && setupEl){
+      leftCol.appendChild(setupEl); // 使 setup 永遠排在 game 後面
+    }
+
     renderStats();
   }
 
   function endGameByRounds(){
-    // 依新「資產淨值（含股票）」決勝
+    // 依「資產淨值（含股票）」決勝
     const ranked = players.map((pp,idx)=>{
       return { pp, idx, pv: propertyValueForPlayer(idx), sv: stockValueOf(pp) };
     }).map(r=>({ ...r, nw: (r.pp.balance||0)+r.pv+r.sv }))
