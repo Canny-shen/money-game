@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>理財小富翁（動物版）— 20 檔股票 + 地產升級 + 資產淨值（含股票）</title>
+<title>理財小富翁（動物版）— 股票持股/成本檢視 + 持續波動</title>
 <style>
   :root{
     --primary:#5d9cec; --panel:#ffffff; --bg:#f0f8ff; --ink:#0f172a;
@@ -11,19 +11,10 @@
   }
   *{box-sizing:border-box}
   body{font-family:"Noto Sans TC",Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:12px}
-
-  /* 版面：左控制、右棋盤 */
-  .layout{
-    display:flex; gap:16px; align-items:flex-start; justify-content:center;
-    max-width:1400px; margin:0 auto;
-  }
+  .layout{display:flex; gap:16px; align-items:flex-start; justify-content:center; max-width:1400px; margin:0 auto;}
   .leftCol{flex:0 0 520px; display:flex; flex-direction:column; gap:12px}
   .rightCol{flex:0 1 auto}
-
-  .panel{
-    background:var(--panel); border-radius:14px;
-    box-shadow:0 6px 18px rgba(0,0,0,.12); padding:12px;
-  }
+  .panel{background:var(--panel); border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,.12); padding:12px;}
   h1{margin:0 0 12px; text-align:center}
   .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
   input,select{padding:6px;border-radius:8px;border:1px solid #cbd5e1}
@@ -38,10 +29,7 @@
   .avatar .imgWrap{position:relative;width:100%}
   .avatar img{width:100%;height:auto;object-fit:contain;border-radius:10px}
   .avatar span{font-size:14px;font-weight:700}
-  .avatar .pickedName{
-    position:absolute;left:6px;right:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;
-    font-weight:700;font-size:14px;padding:4px 6px;border-radius:8px;text-align:center;display:none
-  }
+  .avatar .pickedName{position:absolute;left:6px;right:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-weight:700;font-size:14px;padding:4px 6px;border-radius:8px;text-align:center;display:none}
   .avatar.selected{border-color:var(--primary);box-shadow:0 0 0 3px rgba(93,156,236,.25) inset}
   .avatar.selected .pickedName{display:block}
   .avatar:disabled{opacity:.6;cursor:not-allowed}
@@ -58,13 +46,10 @@
   #card h3{margin:4px 0 6px}
   #card .amount{font-weight:700}
 
-  /* 棋盤區域（在右欄），放大且不重疊 */
+  /* 棋盤 */
   .boardWrap{position:sticky; top:8px}
   .boardTitle{margin:0 0 8px}
-  .board{
-    display:grid; grid-template-columns:repeat(8, 70px); grid-template-rows:repeat(8, 70px);
-    gap:4px; background:#dbeafe; padding:6px; border-radius:12px;
-  }
+  .board{display:grid; grid-template-columns:repeat(8, 70px); grid-template-rows:repeat(8, 70px); gap:4px; background:#dbeafe; padding:6px; border-radius:12px;}
   .cell{background:#eaf4ff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#333}
   .tile{background:#fff;border:2px solid var(--accent);border-radius:10px;padding:3px;width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between}
   .tile h4{margin:0 2px 2px;font-size:11px;line-height:1.15}
@@ -73,14 +58,19 @@
   .pill .nm{font-size:9px;line-height:1;margin-top:1px;color:#111}
   #tileInfo{margin-top:6px;font-size:14px}
 
+  /* 股票持股表 */
+  #holdings{width:100%; overflow:auto; border-top:1px dashed #cbd5e1; margin-top:8px; padding-top:8px}
+  #holdings table{width:100%; border-collapse:collapse; font-size:12px}
+  #holdings th,#holdings td{border-bottom:1px solid #eef2f7; padding:6px 4px; text-align:right}
+  #holdings th:first-child,#holdings td:first-child{text-align:left}
+  .pl{color:var(--good)} .mn{color:var(--bad)}
+
   details{margin-top:8px}
   summary{cursor:pointer}
 
-  /* RWD：小螢幕改為上下排列避免擠在一起 */
   @media (max-width: 1020px){
     .layout{flex-direction:column}
-    .leftCol{width:100%}
-    .rightCol{width:100%}
+    .leftCol,.rightCol{width:100%}
     .board{grid-template-columns:repeat(8, 52px); grid-template-rows:repeat(8, 52px)}
   }
 </style>
@@ -89,7 +79,6 @@
   <h1>🎲 理財小富翁（動物版）</h1>
 
   <div class="layout">
-    <!-- 左：面板列（遊戲開始後，setup 會移到 game 下方） -->
     <div class="leftCol">
       <div class="panel" id="setup">
         <h3>玩家與規則</h3>
@@ -99,10 +88,8 @@
           <div>回合上限：<input type="number" id="roundLimit" min="1" max="50" value="20" style="width:90px"></div>
           <div>勝利金額（現金）：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:120px"></div>
         </div>
-
         <p style="margin:6px 0">點下方動物加入（最多 8 人）：</p>
         <div id="avatars"></div>
-
         <div class="row" style="margin-top:8px">
           <button id="startGame">開始遊戲</button>
           <button id="quickNew" class="secondary">新局（保留玩家，不變更棋盤）</button>
@@ -135,7 +122,7 @@
               <p id="cardText">內容會在這裡出現</p>
               <p class="amount" id="cardAmount"></p>
 
-              <!-- 股票操作列（股票格顯示） -->
+              <!-- 股票操作列 -->
               <div id="stockActions" class="row" style="display:none">
                 <div>📈 標的：
                   <select id="stockSelect"></select>
@@ -146,7 +133,10 @@
                 <button id="btnSell" class="secondary">賣出</button>
               </div>
 
-              <div class="row">
+              <!-- 持股表 -->
+              <div id="holdings" style="display:none"></div>
+
+              <div class="row" style="margin-top:6px">
                 <button id="buyBtn" class="secondary" style="display:none">購買/升級地產</button>
                 <button id="okBtn">知道了</button>
                 <button id="nextBtn" class="secondary">下一位</button>
@@ -167,7 +157,6 @@
       </div>
     </div>
 
-    <!-- 右：棋盤（固定在右側，不與左側重疊） -->
     <div class="rightCol">
       <div class="panel boardWrap">
         <h3 class="boardTitle">8×8 螺旋棋盤（外框→向內）</h3>
@@ -247,6 +236,7 @@ addEventListener('DOMContentLoaded', () => {
   const stockSelectEl=$('stockSelect');
   const btnBuy=$('btnBuy');
   const btnSell=$('btnSell');
+  const holdingsEl=$('holdings');
 
   const buyBtn=$('buyBtn');
   const okBtn=$('okBtn');
@@ -263,6 +253,7 @@ addEventListener('DOMContentLoaded', () => {
   let roundNow=1; let roundMax=20; let winTarget=5000;
   const allLedger=[];
   const GRID=8;
+  let marketTimer=null; // ✓ 持續波動計時器
 
   // === 股票市場：20 檔 ===
   const MARKET={
@@ -281,7 +272,7 @@ addEventListener('DOMContentLoaded', () => {
         this.price[s.symbol] = 60 + Math.round((i+1)* (240/this.list.length)) + Math.floor(Math.random()*20);
       });
     },
-    tickAll(){ // 全市場每回合波動（-10% ~ +10%）
+    tickAll(){ // 全市場波動（-10% ~ +10%）
       for(const s of this.list){
         const p=this.price[s.symbol];
         const pct=(Math.random()*0.20)-0.10;
@@ -306,24 +297,21 @@ addEventListener('DOMContentLoaded', () => {
   }
   const PATH=spiralPath(GRID);
 
-  // 事件卡池（擴充）
+  // 事件卡池
   const EVENTS=[
-    // 收入
     { title:'打工賺錢', text:'你去便利商店打工。', type:'income', amount:200 },
     { title:'壓歲錢', text:'收到阿嬤的紅包。', type:'income', amount:500 },
     { title:'投稿得獎', text:'畫畫投稿獲得獎金。', type:'income', amount:300 },
     { title:'回收瓶罐', text:'做環保也能賺零用錢。', type:'income', amount:120 },
-    // 支出
     { title:'手機維修', text:'手機壞了，付維修費。', type:'expense', amount:300 },
     { title:'遊樂園', text:'和朋友出遊，門票餐飲。', type:'expense', amount:400 },
     { title:'文具補給', text:'買筆記本與鉛筆。', type:'expense', amount:80 },
     { title:'同學生日禮', text:'挑小禮物慶生。', type:'expense', amount:150 },
-    // 特殊
     { title:'社團表現優秀', text:'被老師表揚，得到小獎金。', type:'income', amount:250 },
     { title:'遺失車票', text:'補買車票。', type:'expense', amount:60 }
   ];
 
-  // 建盤：含地產（可升級），股票，稅金等
+  // 建盤：含地產
   function buildTiles(len){
     const tiles=[{ name:'起點', type:'start' }];
     let propId=1;
@@ -348,7 +336,7 @@ addEventListener('DOMContentLoaded', () => {
   }
   let TILES=buildTiles(PATH.length);
 
-  // === 幫助計算：地產價值 / 股票市值 / 資產淨值 ===
+  // === 幫助計算：地產 / 股票 / 淨值 ===
   function propertyValueForPlayer(playerIndex){
     let total=0;
     TILES.forEach(t=>{
@@ -359,10 +347,9 @@ addEventListener('DOMContentLoaded', () => {
     return total;
   }
   function stockValueOf(player){
-    let total=0;
-    if(!player?.stocks) return 0;
+    let total=0; if(!player?.stocks) return 0;
     for(const sym in player.stocks){
-      const qty = player.stocks[sym]||0;
+      const {qty=0}=player.stocks[sym]||{};
       const px = MARKET.price[sym]||0;
       total += qty * px;
     }
@@ -390,7 +377,7 @@ addEventListener('DOMContentLoaded', () => {
         const customName=nameInput?.value.trim();
         if(!customName){ alert('請先輸入名稱'); return; }
         if(players.length>=8){ alert('最多 8 位玩家'); return; }
-        const stockBag={}; MARKET.list.forEach(s=>stockBag[s.symbol]=0);
+        const stockBag={}; MARKET.list.forEach(s=>stockBag[s.symbol]={qty:0,avg:0});
         players.push({
           name:customName, img:(img.src||''), income:0, expense:0, balance:0, ledger:[],
           pos:0, stocks: stockBag
@@ -405,7 +392,7 @@ addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // === 棋盤繪製（右側） ===
+  // === 棋盤繪製 ===
   function renderBoard(){
     boardEl.innerHTML='';
     for(let i=0;i<GRID*GRID;i++){
@@ -461,7 +448,7 @@ addEventListener('DOMContentLoaded', () => {
       const pv = propertyValueForPlayer(currentIndex);
       const sv = stockValueOf(p);
       networthEl.textContent = money((p.balance||0) + pv + sv);
-      const held = Object.entries(p.stocks).filter(([sym,qty])=>qty>0).slice(0,4).map(([sym,qty])=>`${sym}:${qty}`).join('，');
+      const held = Object.entries(p.stocks).filter(([sym,obj])=>(obj?.qty||0)>0).slice(0,4).map(([sym,obj])=>`${sym}:${obj.qty}`).join('，');
       stockSummaryEl.textContent = held || '—';
     }else{
       networthEl.textContent = '0';
@@ -498,11 +485,49 @@ addEventListener('DOMContentLoaded', () => {
     p.ledger.push(entry); allLedger.push(entry);
   }
 
+  // === 股票：持股表 ===
+  function renderHoldings(p, highlightSym=null){
+    const rows = [];
+    let any=false;
+    for(const s of MARKET.list){
+      const sym=s.symbol;
+      const {qty=0, avg=0} = p.stocks[sym]||{};
+      if(qty>0){
+        any=true;
+        const px = MARKET.price[sym]||0;
+        const pl = (px-avg)*qty;
+        rows.push(
+          `<tr${highlightSym===sym?' style="background:#f3f7ff"':''}>
+            <td>${sym}</td>
+            <td>${qty}</td>
+            <td>$ ${money(avg)}</td>
+            <td>$ ${money(px)}</td>
+            <td class="${pl>=0?'pl':'mn'}">${pl>=0?'+':''}$ ${money(Math.abs(pl))}</td>
+          </tr>`
+        );
+      }
+    }
+    if(!any){
+      holdingsEl.style.display='block';
+      holdingsEl.innerHTML = `<em style="color:#64748b">尚無持股</em>`;
+      return;
+    }
+    holdingsEl.style.display='block';
+    holdingsEl.innerHTML = `
+      <div style="font-weight:700;margin:6px 0 4px">我的持股</div>
+      <table>
+        <thead><tr><th>代號</th><th>數量</th><th>平均成本</th><th>現價</th><th>未實現損益</th></tr></thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>
+    `;
+  }
+
   // === 事件處理 ===
   function applyTileEffect(p, roll){
     const tile=TILES[p.pos||0];
     buyBtn.style.display='none'; buyBtn.onclick=null;
     stockActionsEl.style.display='none';
+    holdingsEl.style.display='none';
     btnBuy.onclick=null; btnSell.onclick=null;
 
     let title=''; let text=''; let delta=0;
@@ -528,7 +553,7 @@ addEventListener('DOMContentLoaded', () => {
         title='購物花費'; text='在商店買了需要的東西。'; delta=-cost; p.expense+=cost; p.balance-=cost; break; }
 
       case 'stock': {
-        // 產生下拉清單（市場已在回合開始 tickAll）
+        // 下拉清單
         stockSelectEl.innerHTML='';
         MARKET.list.forEach(s=>{
           const opt=document.createElement('option');
@@ -543,35 +568,53 @@ addEventListener('DOMContentLoaded', () => {
           stockPriceEl.textContent = '$ ' + money(px);
           stockQtyEl.value = 1;
           cardTextEl.innerHTML = `推薦標的：<b>${sym}</b>（可改選），目前市價 $ ${money(px)}。`;
+          renderHoldings(p, sym);
         };
         updatePriceUI();
 
-        title=`股票：選擇標的`;
+        title=`股票：買賣`;
         delta=0;
         stockActionsEl.style.display='flex';
         stockSelectEl.onchange = updatePriceUI;
 
+        // 買入：更新加權平均成本
         btnBuy.onclick=()=>{
           const sym = stockSelectEl.value;
           const qty = Math.max(1, parseInt(stockQtyEl.value||'1',10));
           const px = MARKET.price[sym];
           const cost = qty * px;
           if(p.balance < cost){ alert('現金不足，無法買入。'); return; }
-          p.balance -= cost; p.expense += cost; p.stocks[sym] = (p.stocks[sym]||0) + qty;
+
+          const cur = p.stocks[sym] || {qty:0,avg:0};
+          const newQty = cur.qty + qty;
+          const newAvg = newQty>0 ? Math.round(((cur.qty*cur.avg) + cost) / newQty) : 0;
+
+          p.stocks[sym] = { qty:newQty, avg:newAvg };
+          p.balance -= cost; p.expense += cost;
+
           pushLedger(p, roll, `買入 ${sym} ${qty} 股（$ ${money(px)}）`, -cost);
           renderStats();
-          cardTextEl.textContent = `買入成功，持有 ${sym}：${p.stocks[sym]} 股。`;
+          updatePriceUI();
+          cardTextEl.textContent = `買入成功，${sym} 持有 ${newQty} 股，平均成本 $ ${money(newAvg)}。`;
         };
+
+        // 賣出：不更動 avg（剩餘部位沿用原平均成本）
         btnSell.onclick=()=>{
           const sym = stockSelectEl.value;
           const qty = Math.max(1, parseInt(stockQtyEl.value||'1',10));
-          if((p.stocks[sym]||0) < qty){ alert('持股不足。'); return; }
+          const cur = p.stocks[sym] || {qty:0,avg:0};
+          if(cur.qty < qty){ alert('持股不足。'); return; }
+
           const px = MARKET.price[sym];
           const proceeds = qty * px;
-          p.stocks[sym] -= qty; p.balance += proceeds; p.income += proceeds;
+          const remainQty = cur.qty - qty;
+          p.stocks[sym] = { qty: remainQty, avg: cur.avg };
+          p.balance += proceeds; p.income += proceeds;
+
           pushLedger(p, roll, `賣出 ${sym} ${qty} 股（$ ${money(px)}）`, +proceeds);
           renderStats();
-          cardTextEl.textContent = `賣出成功，持有 ${sym}：${p.stocks[sym]} 股。`;
+          updatePriceUI();
+          cardTextEl.textContent = `賣出成功，${sym} 剩餘 ${remainQty} 股。`;
         };
         break;
       }
@@ -580,7 +623,7 @@ addEventListener('DOMContentLoaded', () => {
         const me=currentIndex;
         const owner=tile.ownerIndex;
         const rent = (tile.baseRent||0) * (tile.level||1);
-        const upgradeCost = Math.floor(tile.price * 0.6); // 升級費用（60% 房價）
+        const upgradeCost = Math.floor(tile.price * 0.6);
 
         if(owner==null){
           title=tile.name; text=`無人擁有，可購買（價格 $ ${money(tile.price)}，租金 $ ${money(rent)}）。`;
@@ -629,7 +672,7 @@ addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 顯示卡片（左側）
+    // 顯示卡片
     cardTitleEl.textContent=title;
     cardTextEl.textContent=text;
     cardAmountEl.textContent=(delta>=0?'收入 +':'支出 ')+money(Math.abs(delta));
@@ -643,6 +686,27 @@ addEventListener('DOMContentLoaded', () => {
   }
 
   // === 流程 ===
+  function startMarketTimer(){
+    stopMarketTimer();
+    marketTimer = setInterval(()=>{
+      if(gameOver) return;
+      MARKET.tickAll();
+      renderStats();
+      // 若正在股票面板上，順手更新持股表與現價
+      if(stockActionsEl.style.display!=='none'){
+        const p=players[currentIndex];
+        const sym = (document.getElementById('stockSelect')||{}).value;
+        if(sym){
+          document.getElementById('stockPrice').textContent = '$ ' + money(MARKET.price[sym]||0);
+          renderHoldings(p, sym);
+        }
+      }
+    }, 5000); // ✓ 每 5 秒波動一次
+  }
+  function stopMarketTimer(){
+    if(marketTimer){ clearInterval(marketTimer); marketTimer=null; }
+  }
+
   function startGame({reseed=false}={}){
     if(players.length<1){ alert('請至少加入 1 位玩家'); return; }
     roundMax = clamp(parseInt(roundLimitInput.value||'20',10),1,50);
@@ -652,27 +716,23 @@ addEventListener('DOMContentLoaded', () => {
     roundNow=1; currentIndex=0; gameOver=false; allLedger.length=0;
     if(reseed){ TILES=buildTiles(PATH.length); MARKET.init(); }
 
-    // 重設玩家並給初始金額＋記一筆
+    // 重設玩家與初始金額
     players = players.map(p=>{
-      const bag={}; MARKET.list.forEach(s=>bag[s.symbol]=0);
+      const bag={}; MARKET.list.forEach(s=>bag[s.symbol]={qty:0,avg:0});
       const np = { ...p, pos:0, income:0, expense:0, balance:startMoney, ledger:[], stocks:bag };
       np.ledger.push({ time:new Date().toLocaleString(), player:np.name, roll:'-', title:'初始資金', type:'income', amount:startMoney, balance:startMoney });
       return np;
     });
 
-    // 顯示遊戲面板
+    // 顯示遊戲面板，setup 排在 game 下方
     gameEl.style.display='block';
+    if(leftCol && setupEl){ leftCol.appendChild(setupEl); }
 
-    // ★ 把「玩家與規則」移到「遊戲面板」下方（只要在左欄重新 append 一次即可）
-    if(leftCol && setupEl){
-      leftCol.appendChild(setupEl); // 使 setup 永遠排在 game 後面
-    }
-
+    startMarketTimer(); // ✓ 開始持續波動
     renderStats();
   }
 
   function endGameByRounds(){
-    // 依「資產淨值（含股票）」決勝
     const ranked = players.map((pp,idx)=>{
       return { pp, idx, pv: propertyValueForPlayer(idx), sv: stockValueOf(pp) };
     }).map(r=>({ ...r, nw: (r.pp.balance||0)+r.pv+r.sv }))
@@ -680,6 +740,7 @@ addEventListener('DOMContentLoaded', () => {
     const top = ranked[0];
     alert(`⏱️ 達到 ${roundMax} 回合，${top.pp.name} 以資產淨值 ${money(top.nw)} 元獲勝！（現金 ${money(top.pp.balance)}｜地產 ${money(top.pv)}｜股票 ${money(top.sv)}）`);
     gameOver=true;
+    stopMarketTimer();
   }
 
   function advanceTurn(){
@@ -687,31 +748,28 @@ addEventListener('DOMContentLoaded', () => {
     currentIndex = (currentIndex + 1) % players.length;
     if(currentIndex===0){
       roundNow+=1;
-      if(roundNow>roundMax){
-        endGameByRounds();
-        return;
-      }
+      if(roundNow>roundMax){ endGameByRounds(); return; }
     }
     renderStats(); resultEl.textContent='';
   }
 
-  // 擲骰（每回合開始→市場自動波動）
+  // 擲骰（每回合開始→市場也會波動一次）
   diceEl.addEventListener('click',()=>{
     if(gameOver){ return; }
     if(!players.length){ alert('請先加入玩家'); return; }
 
-    // ★ 每回合自動全市場微幅波動（不需到股票格）
-    MARKET.tickAll();
+    MARKET.tickAll(); // ✓ 每回合開始也波動一次（與 5 秒計時器相加）
 
     const p=players[currentIndex];
     const roll=Math.floor(Math.random()*6)+1; resultEl.textContent=`你擲出了：${roll}`;
     p.pos = ((p.pos||0)+roll) % PATH.length; renderBoard();
     applyTileEffect(p, roll);
 
-    // 勝利條件（現金判定）
+    // 勝利（現金）
     if(winTarget>0 && p.balance>=winTarget){ 
       alert(`🎉 恭喜 ${p.name} 現金餘額達到 $${money(winTarget)}，獲勝！`); 
       gameOver=true; 
+      stopMarketTimer();
     }
   });
 
@@ -735,6 +793,16 @@ addEventListener('DOMContentLoaded', () => {
       console.assert(PATH.length===64,'PATH=64');
       const uniq=new Set(PATH); console.assert(uniq.size===64,'PATH 不重複');
       const tmp=buildTiles(PATH.length); console.assert(tmp.length===64,'TILES=64');
+      // 成本法測試
+      const p={stocks:{AAA:{qty:0,avg:0}}, balance:100000, income:0, expense:0};
+      MARKET.price.AAA=100; // 假符號
+      // buy 10 @100
+      let cur=p.stocks.AAA; let qty=10; let px=100; let cost=qty*px;
+      cur={qty:cur.qty+qty, avg:Math.round(((cur.qty*cur.avg)+cost)/(cur.qty+qty))}; p.stocks.AAA=cur;
+      console.assert(p.stocks.AAA.avg===100 && p.stocks.AAA.qty===10,'avg 100 / qty 10');
+      // buy 10 @200 => avg 150
+      qty=10; px=200; cost=qty*px; cur=p.stocks.AAA; cur={qty:cur.qty+qty, avg:Math.round(((cur.qty*cur.avg)+cost)/(cur.qty+qty))}; p.stocks.AAA=cur;
+      console.assert(p.stocks.AAA.avg===150 && p.stocks.AAA.qty===20,'avg 150 / qty 20');
       logTest('✓ OK');
     }catch(e){ logTest('❌ '+(e?.message||e)); }
   }
