@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>理財小富翁（動物版）— 淨值達標勝利｜股票持股/成本檢視 + 持續波動</title>
+<title>理財小富翁（動物版）— 股票持股/成本檢視 + 持續波動</title>
 <style>
   :root{
     --primary:#5d9cec; --panel:#ffffff; --bg:#f0f8ff; --ink:#0f172a;
@@ -86,7 +86,7 @@
           <input id="nameInput" placeholder="請輸入玩家名稱"/>
           <div>初始金額：<input id="startMoney" type="number" min="0" step="100" value="3000" style="width:120px"></div>
           <div>回合上限：<input type="number" id="roundLimit" min="1" max="50" value="20" style="width:90px"></div>
-          <div>勝利淨值（資產淨值）：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:120px"></div>
+          <div>勝利金額（現金）：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:120px"></div>
         </div>
         <p style="margin:6px 0">點下方動物加入（最多 8 人）：</p>
         <div id="avatars"></div>
@@ -398,7 +398,7 @@ addEventListener('DOMContentLoaded', () => {
     for(let i=0;i<GRID*GRID;i++){
       const cell=document.createElement('div'); cell.className='cell'; boardEl.appendChild(cell);
     }
-    for(let k=0;k>TILES.length;k++){
+    for(let k=0;k<TILES.length;k++){
       const cell=boardEl.children[PATH[k]];
       const t=TILES[k];
       const tile=document.createElement('div'); tile.className='tile';
@@ -522,18 +522,6 @@ addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  // === 勝利（淨值）檢查 ===
-  function checkNetworthWin(p, pIndex){
-    const nw = netWorthOf(p, pIndex);
-    if(winTarget>0 && nw>=winTarget){
-      alert(`🎉 恭喜 ${p.name} 資產淨值達到 $${money(winTarget)}，獲勝！`);
-      gameOver=true;
-      stopMarketTimer();
-      return true;
-    }
-    return false;
-  }
-
   // === 事件處理 ===
   function applyTileEffect(p, roll){
     const tile=TILES[p.pos||0];
@@ -608,7 +596,6 @@ addEventListener('DOMContentLoaded', () => {
           renderStats();
           updatePriceUI();
           cardTextEl.textContent = `買入成功，${sym} 持有 ${newQty} 股，平均成本 $ ${money(newAvg)}。`;
-          checkNetworthWin(p, currentIndex); // 買入後也檢查淨值
         };
 
         // 賣出：不更動 avg（剩餘部位沿用原平均成本）
@@ -628,7 +615,6 @@ addEventListener('DOMContentLoaded', () => {
           renderStats();
           updatePriceUI();
           cardTextEl.textContent = `賣出成功，${sym} 剩餘 ${remainQty} 股。`;
-          checkNetworthWin(p, currentIndex); // 賣出後也檢查淨值
         };
         break;
       }
@@ -651,7 +637,6 @@ addEventListener('DOMContentLoaded', () => {
             tile.ownerIndex = me; renderStats();
             cardTextEl.textContent = `已購買 ${tile.name}！目前等級 Lv${tile.level}，租金 $ ${money(rent)}。`;
             buyBtn.style.display='none';
-            checkNetworthWin(p, currentIndex); // 購買後檢查淨值
           };
         } else if(owner!==me){
           title=tile.name; text=`此地產屬於 ${players[owner].name}，需支付租金 $ ${money(rent)}。`;
@@ -671,7 +656,6 @@ addEventListener('DOMContentLoaded', () => {
               const newRent = (tile.baseRent||0) * (tile.level||1);
               cardTextEl.textContent = `升級成功！新租金 $ ${money(newRent)}。`;
               if(tile.level>=tile.maxLevel) buyBtn.style.display='none';
-              checkNetworthWin(p, currentIndex); // 升級後檢查淨值
             };
           } else {
             buyBtn.style.display='none';
@@ -699,9 +683,6 @@ addEventListener('DOMContentLoaded', () => {
 
     // 記帳
     pushLedger(p, roll, title, delta);
-
-    // 事件結束後再檢查一次（避免錯過）
-    checkNetworthWin(p, currentIndex);
   }
 
   // === 流程 ===
@@ -729,7 +710,7 @@ addEventListener('DOMContentLoaded', () => {
   function startGame({reseed=false}={}){
     if(players.length<1){ alert('請至少加入 1 位玩家'); return; }
     roundMax = clamp(parseInt(roundLimitInput.value||'20',10),1,50);
-    winTarget = Math.max(0, parseInt(winTargetInput.value||'5000',10)); // ★ 以淨值判定
+    winTarget = Math.max(0, parseInt(winTargetInput.value||'5000',10));
     const startMoney = Math.max(0, parseInt(startMoneyInput.value||'3000',10));
 
     roundNow=1; currentIndex=0; gameOver=false; allLedger.length=0;
@@ -783,8 +764,13 @@ addEventListener('DOMContentLoaded', () => {
     const roll=Math.floor(Math.random()*6)+1; resultEl.textContent=`你擲出了：${roll}`;
     p.pos = ((p.pos||0)+roll) % PATH.length; renderBoard();
     applyTileEffect(p, roll);
-    // ★ 勝利（資產淨值）
-    // 已在 applyTileEffect 末端與買/賣/升級後呼叫 checkNetworthWin
+
+    // 勝利（現金）
+    if(winTarget>0 && p.balance>=winTarget){ 
+      alert(`🎉 恭喜 ${p.name} 現金餘額達到 $${money(winTarget)}，獲勝！`); 
+      gameOver=true; 
+      stopMarketTimer();
+    }
   });
 
   okBtn.addEventListener('click', advanceTurn);
