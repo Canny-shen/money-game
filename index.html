@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>理財小富翁（動物版）— 淨值達標勝利｜股票持股/成本檢視 + 持續波動</title>
+<title>理財小富翁（動物版）— 股票持股/成本檢視 + 持續波動</title>
 <style>
   :root{
     --primary:#5d9cec; --panel:#ffffff; --bg:#f0f8ff; --ink:#0f172a;
@@ -86,7 +86,7 @@
           <input id="nameInput" placeholder="請輸入玩家名稱"/>
           <div>初始金額：<input id="startMoney" type="number" min="0" step="100" value="3000" style="width:120px"></div>
           <div>回合上限：<input type="number" id="roundLimit" min="1" max="50" value="20" style="width:90px"></div>
-          <div>勝利淨值（資產淨值）：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:120px"></div>
+          <div>勝利金額（現金）：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:120px"></div>
         </div>
         <p style="margin:6px 0">點下方動物加入（最多 8 人）：</p>
         <div id="avatars"></div>
@@ -686,14 +686,13 @@ addEventListener('DOMContentLoaded', () => {
   }
 
   // === 流程 ===
-  let marketTimer=null;
   function startMarketTimer(){
     stopMarketTimer();
     marketTimer = setInterval(()=>{
       if(gameOver) return;
       MARKET.tickAll();
       renderStats();
-      // 更新股票面板資料
+      // 若正在股票面板上，順手更新持股表與現價
       if(stockActionsEl.style.display!=='none'){
         const p=players[currentIndex];
         const sym = (document.getElementById('stockSelect')||{}).value;
@@ -702,7 +701,7 @@ addEventListener('DOMContentLoaded', () => {
           renderHoldings(p, sym);
         }
       }
-    }, 5000); // 每 5 秒波動一次
+    }, 5000); // ✓ 每 5 秒波動一次
   }
   function stopMarketTimer(){
     if(marketTimer){ clearInterval(marketTimer); marketTimer=null; }
@@ -711,7 +710,7 @@ addEventListener('DOMContentLoaded', () => {
   function startGame({reseed=false}={}){
     if(players.length<1){ alert('請至少加入 1 位玩家'); return; }
     roundMax = clamp(parseInt(roundLimitInput.value||'20',10),1,50);
-    winTarget = Math.max(0, parseInt(winTargetInput.value||'5000',10)); // ★ 以淨值判定
+    winTarget = Math.max(0, parseInt(winTargetInput.value||'5000',10));
     const startMoney = Math.max(0, parseInt(startMoneyInput.value||'3000',10));
 
     roundNow=1; currentIndex=0; gameOver=false; allLedger.length=0;
@@ -729,12 +728,11 @@ addEventListener('DOMContentLoaded', () => {
     gameEl.style.display='block';
     if(leftCol && setupEl){ leftCol.appendChild(setupEl); }
 
-    startMarketTimer();
+    startMarketTimer(); // ✓ 開始持續波動
     renderStats();
   }
 
   function endGameByRounds(){
-    // 依「資產淨值（含股票）」決勝
     const ranked = players.map((pp,idx)=>{
       return { pp, idx, pv: propertyValueForPlayer(idx), sv: stockValueOf(pp) };
     }).map(r=>({ ...r, nw: (r.pp.balance||0)+r.pv+r.sv }))
@@ -743,17 +741,6 @@ addEventListener('DOMContentLoaded', () => {
     alert(`⏱️ 達到 ${roundMax} 回合，${top.pp.name} 以資產淨值 ${money(top.nw)} 元獲勝！（現金 ${money(top.pp.balance)}｜地產 ${money(top.pv)}｜股票 ${money(top.sv)}）`);
     gameOver=true;
     stopMarketTimer();
-  }
-
-  function checkNetworthWin(p, pIndex){
-    const nw = netWorthOf(p, pIndex);
-    if(winTarget>0 && nw>=winTarget){
-      alert(`🎉 恭喜 ${p.name} 資產淨值達到 $${money(winTarget)}，獲勝！`);
-      gameOver=true;
-      stopMarketTimer();
-      return true;
-    }
-    return false;
   }
 
   function advanceTurn(){
@@ -771,15 +758,19 @@ addEventListener('DOMContentLoaded', () => {
     if(gameOver){ return; }
     if(!players.length){ alert('請先加入玩家'); return; }
 
-    MARKET.tickAll(); // 每回合開始也波動一次
+    MARKET.tickAll(); // ✓ 每回合開始也波動一次（與 5 秒計時器相加）
 
     const p=players[currentIndex];
     const roll=Math.floor(Math.random()*6)+1; resultEl.textContent=`你擲出了：${roll}`;
     p.pos = ((p.pos||0)+roll) % PATH.length; renderBoard();
     applyTileEffect(p, roll);
 
-    // ★ 勝利條件：資產淨值判定
-    checkNetworthWin(p, currentIndex);
+    // 勝利（現金）
+    if(winTarget>0 && p.balance>=winTarget){ 
+      alert(`🎉 恭喜 ${p.name} 現金餘額達到 $${money(winTarget)}，獲勝！`); 
+      gameOver=true; 
+      stopMarketTimer();
+    }
   });
 
   okBtn.addEventListener('click', advanceTurn);
@@ -804,10 +795,12 @@ addEventListener('DOMContentLoaded', () => {
       const tmp=buildTiles(PATH.length); console.assert(tmp.length===64,'TILES=64');
       // 成本法測試
       const p={stocks:{AAA:{qty:0,avg:0}}, balance:100000, income:0, expense:0};
-      MARKET.price.AAA=100;
+      MARKET.price.AAA=100; // 假符號
+      // buy 10 @100
       let cur=p.stocks.AAA; let qty=10; let px=100; let cost=qty*px;
       cur={qty:cur.qty+qty, avg:Math.round(((cur.qty*cur.avg)+cost)/(cur.qty+qty))}; p.stocks.AAA=cur;
       console.assert(p.stocks.AAA.avg===100 && p.stocks.AAA.qty===10,'avg 100 / qty 10');
+      // buy 10 @200 => avg 150
       qty=10; px=200; cost=qty*px; cur=p.stocks.AAA; cur={qty:cur.qty+qty, avg:Math.round(((cur.qty*cur.avg)+cost)/(cur.qty+qty))}; p.stocks.AAA=cur;
       console.assert(p.stocks.AAA.avg===150 && p.stocks.AAA.qty===20,'avg 150 / qty 20');
       logTest('✓ OK');
