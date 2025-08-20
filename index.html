@@ -160,7 +160,7 @@
     <div class="rightCol">
       <div class="panel boardWrap">
         <h3 class="boardTitle">8×8 螺旋棋盤（外框→向內）</h3>
-        <div id="board" class="board"></div>
+        <div id="board" class="board" aria-live="polite"></div>
         <div id="tileInfo">位置：—</div>
       </div>
     </div>
@@ -253,7 +253,7 @@ addEventListener('DOMContentLoaded', () => {
   let roundNow=1; let roundMax=20; let winTarget=5000;
   const allLedger=[];
   const GRID=8;
-  let marketTimer=null; // ✓ 持續波動計時器
+  let marketTimer=null;
 
   // === 股票市場：20 檔 ===
   const MARKET={
@@ -359,7 +359,7 @@ addEventListener('DOMContentLoaded', () => {
     return (player.balance||0) + propertyValueForPlayer(playerIndex) + stockValueOf(player);
   }
 
-  // === UI：角色頭像 ===
+  // === UI：角色頭像
   function buildAvatars(){
     avatarsEl.innerHTML='';
     CHARACTERS.forEach(c=>{
@@ -392,14 +392,31 @@ addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // === 棋盤繪製 ===
+  // === 棋盤繪製（含防呆） ===
   function renderBoard(){
+    if(!boardEl){ console.error('找不到 #board'); return; }
     boardEl.innerHTML='';
-    for(let i=0;i<GRID*GRID;i++){
-      const cell=document.createElement('div'); cell.className='cell'; boardEl.appendChild(cell);
+
+    // 產生 64 個格子
+    const total = GRID*GRID;
+    for(let i=0;i<total;i++){
+      const cell=document.createElement('div'); cell.className='cell'; cell.dataset.idx=i;
+      boardEl.appendChild(cell);
     }
-    for(let k=0;k>TILES.length;k++){
-      const cell=boardEl.children[PATH[k]];
+
+    // 路徑與長度檢查
+    if(!Array.isArray(PATH) || PATH.length!==total){
+      boardEl.innerHTML = `<div style="padding:8px;color:#c62828;background:#fff;border-radius:8px">
+        棋盤路徑產生失敗（PATH 長度=${PATH?.length||'N/A'}，應為 ${total}）。請重新整理或貼回完整檔案。
+      </div>`;
+      return;
+    }
+
+    // 依螺旋 PATH 佈置每個 tile
+    for(let k=0;k<TILES.length;k++){
+      const boardIndex = PATH[k];
+      const cell=boardEl.querySelector(`.cell[data-idx="${boardIndex}"]`);
+      if(!cell){ continue; }
       const t=TILES[k];
       const tile=document.createElement('div'); tile.className='tile';
 
@@ -608,7 +625,7 @@ addEventListener('DOMContentLoaded', () => {
           renderStats();
           updatePriceUI();
           cardTextEl.textContent = `買入成功，${sym} 持有 ${newQty} 股，平均成本 $ ${money(newAvg)}。`;
-          checkNetworthWin(p, currentIndex); // 買入後也檢查淨值
+          checkNetworthWin(p, currentIndex);
         };
 
         // 賣出：不更動 avg（剩餘部位沿用原平均成本）
@@ -628,7 +645,7 @@ addEventListener('DOMContentLoaded', () => {
           renderStats();
           updatePriceUI();
           cardTextEl.textContent = `賣出成功，${sym} 剩餘 ${remainQty} 股。`;
-          checkNetworthWin(p, currentIndex); // 賣出後也檢查淨值
+          checkNetworthWin(p, currentIndex);
         };
         break;
       }
@@ -651,7 +668,7 @@ addEventListener('DOMContentLoaded', () => {
             tile.ownerIndex = me; renderStats();
             cardTextEl.textContent = `已購買 ${tile.name}！目前等級 Lv${tile.level}，租金 $ ${money(rent)}。`;
             buyBtn.style.display='none';
-            checkNetworthWin(p, currentIndex); // 購買後檢查淨值
+            checkNetworthWin(p, currentIndex);
           };
         } else if(owner!==me){
           title=tile.name; text=`此地產屬於 ${players[owner].name}，需支付租金 $ ${money(rent)}。`;
@@ -671,7 +688,7 @@ addEventListener('DOMContentLoaded', () => {
               const newRent = (tile.baseRent||0) * (tile.level||1);
               cardTextEl.textContent = `升級成功！新租金 $ ${money(newRent)}。`;
               if(tile.level>=tile.maxLevel) buyBtn.style.display='none';
-              checkNetworthWin(p, currentIndex); // 升級後檢查淨值
+              checkNetworthWin(p, currentIndex);
             };
           } else {
             buyBtn.style.display='none';
@@ -711,7 +728,6 @@ addEventListener('DOMContentLoaded', () => {
       if(gameOver) return;
       MARKET.tickAll();
       renderStats();
-      // 若正在股票面板上，順手更新持股表與現價
       if(stockActionsEl.style.display!=='none'){
         const p=players[currentIndex];
         const sym = (document.getElementById('stockSelect')||{}).value;
@@ -720,7 +736,7 @@ addEventListener('DOMContentLoaded', () => {
           renderHoldings(p, sym);
         }
       }
-    }, 5000); // ✓ 每 5 秒波動一次
+    }, 5000);
   }
   function stopMarketTimer(){
     if(marketTimer){ clearInterval(marketTimer); marketTimer=null; }
@@ -729,13 +745,12 @@ addEventListener('DOMContentLoaded', () => {
   function startGame({reseed=false}={}){
     if(players.length<1){ alert('請至少加入 1 位玩家'); return; }
     roundMax = clamp(parseInt(roundLimitInput.value||'20',10),1,50);
-    winTarget = Math.max(0, parseInt(winTargetInput.value||'5000',10)); // ★ 以淨值判定
+    winTarget = Math.max(0, parseInt(winTargetInput.value||'5000',10)); // 淨值判定
     const startMoney = Math.max(0, parseInt(startMoneyInput.value||'3000',10));
 
     roundNow=1; currentIndex=0; gameOver=false; allLedger.length=0;
     if(reseed){ TILES=buildTiles(PATH.length); MARKET.init(); }
 
-    // 重設玩家與初始金額
     players = players.map(p=>{
       const bag={}; MARKET.list.forEach(s=>bag[s.symbol]={qty:0,avg:0});
       const np = { ...p, pos:0, income:0, expense:0, balance:startMoney, ledger:[], stocks:bag };
@@ -743,11 +758,10 @@ addEventListener('DOMContentLoaded', () => {
       return np;
     });
 
-    // 顯示遊戲面板，setup 排在 game 下方
     gameEl.style.display='block';
     if(leftCol && setupEl){ leftCol.appendChild(setupEl); }
 
-    startMarketTimer(); // ✓ 開始持續波動
+    startMarketTimer();
     renderStats();
   }
 
@@ -772,19 +786,17 @@ addEventListener('DOMContentLoaded', () => {
     renderStats(); resultEl.textContent='';
   }
 
-  // 擲骰（每回合開始→市場也會波動一次）
+  // 擲骰
   diceEl.addEventListener('click',()=>{
     if(gameOver){ return; }
     if(!players.length){ alert('請先加入玩家'); return; }
 
-    MARKET.tickAll(); // ✓ 每回合開始也波動一次（與 5 秒計時器相加）
+    MARKET.tickAll();
 
     const p=players[currentIndex];
     const roll=Math.floor(Math.random()*6)+1; resultEl.textContent=`你擲出了：${roll}`;
     p.pos = ((p.pos||0)+roll) % PATH.length; renderBoard();
     applyTileEffect(p, roll);
-    // ★ 勝利（資產淨值）
-    // 已在 applyTileEffect 末端與買/賣/升級後呼叫 checkNetworthWin
   });
 
   okBtn.addEventListener('click', advanceTurn);
@@ -807,14 +819,11 @@ addEventListener('DOMContentLoaded', () => {
       console.assert(PATH.length===64,'PATH=64');
       const uniq=new Set(PATH); console.assert(uniq.size===64,'PATH 不重複');
       const tmp=buildTiles(PATH.length); console.assert(tmp.length===64,'TILES=64');
-      // 成本法測試
       const p={stocks:{AAA:{qty:0,avg:0}}, balance:100000, income:0, expense:0};
-      MARKET.price.AAA=100; // 假符號
-      // buy 10 @100
+      MARKET.price.AAA=100;
       let cur=p.stocks.AAA; let qty=10; let px=100; let cost=qty*px;
       cur={qty:cur.qty+qty, avg:Math.round(((cur.qty*cur.avg)+cost)/(cur.qty+qty))}; p.stocks.AAA=cur;
       console.assert(p.stocks.AAA.avg===100 && p.stocks.AAA.qty===10,'avg 100 / qty 10');
-      // buy 10 @200 => avg 150
       qty=10; px=200; cost=qty*px; cur=p.stocks.AAA; cur={qty:cur.qty+qty, avg:Math.round(((cur.qty*cur.avg)+cost)/(cur.qty+qty))}; p.stocks.AAA=cur;
       console.assert(p.stocks.AAA.avg===150 && p.stocks.AAA.qty===20,'avg 150 / qty 20');
       logTest('✓ OK');
@@ -825,3 +834,4 @@ addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
