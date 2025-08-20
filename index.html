@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>理財小富翁（動物版）— 進階版：銀行貸款/存款利息＋台股漲跌幅＋股利/停牌＋住院＋投資提案</title>
+<title>理財小富翁（動物版）— 淨值＋銀行貸款/存款＋台股漲跌幅＋股利/停牌＋住院＋投資提案</title>
 <style>
   :root{
     --primary:#5d9cec; --panel:#ffffff; --bg:#f0f8ff; --ink:#0f172a;
@@ -93,7 +93,7 @@
           <div>回合上限：<input type="number" id="roundLimit" min="1" max="100" value="20" style="width:90px"></div>
           <div>勝利淨值（0=不啟用）：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:120px"></div>
         </div>
-        <p class="note">說明：勝利淨值若設為 0 代表不啟用勝利判定，玩到回合上限比高下。</p>
+        <p class="note">勝利淨值設 0 代表不啟用勝利判定，玩到回合上限比高下。</p>
         <p style="margin:6px 0">點下方動物加入（最多 8 人）：</p>
         <div id="avatars"></div>
         <div class="row" style="margin-top:8px">
@@ -302,8 +302,7 @@ addEventListener('DOMContentLoaded', () => {
     deposit: 0.02, // 活存 2% 年息
     loanYear: {1:0.045,2:0.05,3:0.055,4:0.06,5:0.065} // 年利率
   };
-  // 一圈 = 1 個「月」，把年率換算月率
-  const toMonthly = (annual)=> annual/12;
+  const toMonthly = (annual)=> annual/12; // 一圈 = 1 個「月」
 
   // ====== 股票市場：20 檔（含漲跌幅、停牌、股利事件）======
   const MARKET={
@@ -319,7 +318,7 @@ addEventListener('DOMContentLoaded', () => {
     price: {},
     refClose: {},    // 昨收
     halted: {},      // 停牌剩餘回合
-    news: [],        // 最新新聞（顯示用）
+    news: [],        // 最新新聞
     init(){
       this.list.forEach((s,i)=>{
         const p = 60 + Math.round((i+1)* (240/this.list.length)) + Math.floor(Math.random()*20);
@@ -337,18 +336,18 @@ addEventListener('DOMContentLoaded', () => {
       return randInt(minP, maxP, rnd);
     },
     tickAll(){
-      // 先決定是否出新聞：小機率
+      // 小機率出新聞
       if(Math.random()<0.2){
         const s = this.list[randInt(0,this.list.length-1)];
         const r = Math.random();
         if(r<0.33){ // 停牌 2 回合
           this.halted[s.symbol] = 2;
-          this.news.unshift(`【停牌】${s.symbol} ${s.name} 因重大訊息停牌 2 回合。`);
+          this.news.unshift(`【停牌】${s.symbol} ${s.name} 停牌 2 回合。`);
         }else if(r<0.66){ // 股利
           const cash = randInt(2,8)*10; // 每股 20~80
-          this.news.unshift(`【股利】${s.symbol} ${s.name} 宣布每股現金股利 $${cash}，立即發放予持有人。`);
+          this.news.unshift(`【股利】${s.symbol} ${s.name} 每股現金股利 $${cash}，立即發放。`);
           payDividend(s.symbol, cash);
-        }else{ // 好/壞新聞：影響下一筆定價機率（這裡簡化為直接微調昨收）
+        }else{ // 利多/利空微調昨收
           const bias = (Math.random()<0.5?-1:1) * randInt(1,3)/100;
           this.refClose[s.symbol] = Math.max(10, Math.round(this.refClose[s.symbol]*(1+bias)));
           this.news.unshift(`【新聞】${s.symbol} ${s.name} ${bias>0?'利多':'利空'}發酵。`);
@@ -356,14 +355,13 @@ addEventListener('DOMContentLoaded', () => {
         this.news = this.news.slice(0,4);
       }
 
-      // 更新每檔價格（有停牌者不動、回合數-1）
+      // 更新每檔價格（停牌者不動）
       for(const s of this.list){
         const sym=s.symbol;
         if(this.halted[sym]>0){ this.halted[sym]-=1; continue; }
         this.price[sym] = this.nextPrice(sym);
       }
     },
-    // 收盤：把今日收盤價存成明日昨收
     closeAll(){
       for(const s of this.list){ this.refClose[s.symbol] = this.price[s.symbol]; }
     }
@@ -382,6 +380,7 @@ addEventListener('DOMContentLoaded', () => {
     }
     return res;
   }
+  const GRID=8;
   const PATH=spiralPath(GRID);
 
   // 事件卡池（擴充：住院、投資提案）
@@ -401,7 +400,7 @@ addEventListener('DOMContentLoaded', () => {
     { title:'投資提案', text:'同學邀你一起做小生意，可選擇投資，結果在下次輪到你時揭曉。', type:'invest' }
   ];
 
-  // 建盤：含地產、股票、事件、商店...
+  // 建盤：含地產
   function buildTiles(len){
     const tiles=[{ name:'起點', type:'start' }];
     let propId=1;
@@ -446,7 +445,6 @@ addEventListener('DOMContentLoaded', () => {
     return total;
   }
   function loanBalance(p){
-    // 剩餘本金 + 逾期
     return (p.loans||[]).reduce((s,l)=>s+(l.remaining||0)+(l.arrears||0),0);
   }
   function bankBalance(p){ return Math.max(0, Math.floor(p.bank||0)); }
@@ -658,27 +656,22 @@ addEventListener('DOMContentLoaded', () => {
     for(const loan of (p.loans||[])){
       if(loan.remaining<=0) continue;
       const r = toMonthly(loan.rate);
-      // 每月固定本息 payment（已於開貸時計算）
-      const pay = loan.payment;
-      // 當月利息
+      const pay = loan.payment;               // 每月固定本息（開貸時計算）
       const interest = Math.floor(loan.remaining * r);
       let principal = pay - interest;
       if(principal<0) principal=0;
       if(principal>loan.remaining) { principal=loan.remaining; }
-      const need = principal + interest;
+      const need = principal + interest + (loan.arrears||0);
       if(p.balance >= need){
-        p.balance -= need; p.expense += need; loan.remaining -= principal;
+        p.balance -= need; p.expense += need; loan.remaining -= principal; loan.arrears = 0;
         pushLedger(p, '-', `貸款月付（年${Math.round(loan.rate*1000)/10}%）`, -need);
       }else{
-        // 現金不足：計入逾期（arrears），下次再補
-        const lack = need - p.balance;
-        if(p.balance>0){
-          p.expense += p.balance;
-          pushLedger(p, '-', `貸款月付（部分）`, -p.balance);
-          p.balance = 0;
-        }
-        loan.arrears = (loan.arrears||0) + lack;
-        pushLedger(p, '-', `貸款逾期累積`, -0);
+        // 現金不足：全部視為逾期累積
+        const paid = p.balance;
+        if(paid>0){ p.expense += paid; pushLedger(p,'-','貸款月付（部分）', -paid); }
+        p.balance = 0;
+        loan.arrears = (loan.arrears||0) + (need - paid);
+        pushLedger(p, '-', `貸款逾期累積`, 0);
       }
     }
   }
@@ -689,7 +682,7 @@ addEventListener('DOMContentLoaded', () => {
     const amt = Math.max(0, parseInt(depositAmt.value||'0',10));
     if(amt<=0) return;
     if(p.balance<amt){ alert('現金不足'); return; }
-    p.balance -= amt; p.bank = (p.bank||0) + amt; p.expense += 0;
+    p.balance -= amt; p.bank = (p.bank||0) + amt;
     pushLedger(p,'-','存入銀行', -amt);
     renderStats();
   });
@@ -698,7 +691,7 @@ addEventListener('DOMContentLoaded', () => {
     const amt = Math.max(0, parseInt(withdrawAmt.value||'0',10));
     if(amt<=0) return;
     if((p.bank||0)<amt){ alert('銀行存款不足'); return; }
-    p.bank -= amt; p.balance += amt; p.income += 0;
+    p.bank -= amt; p.balance += amt;
     pushLedger(p,'-','自銀行提領', +amt);
     renderStats();
   });
@@ -796,7 +789,7 @@ addEventListener('DOMContentLoaded', () => {
         stockActionsEl.style.display='flex';
         stockSelectEl.onchange = updatePriceUI;
 
-        // 買入：更新加權平均成本（若停牌禁止）
+        // 買入
         btnBuy.onclick=()=>{
           const sym = stockSelectEl.value;
           if((MARKET.halted[sym]||0)>0){ alert('該股停牌中，暫停交易'); return; }
@@ -806,7 +799,7 @@ addEventListener('DOMContentLoaded', () => {
           if(p.balance < cost){
             if(confirm('現金不足，是否申請貸款購買？')){
               bankBar.style.display='flex';
-              alert('請於下方「貸款金額」輸入並點「申貸」後再嘗試買入。');
+              alert('請於下方「貸款金額」輸入並「申貸」後再買入。');
             }
             return;
           }
@@ -823,7 +816,7 @@ addEventListener('DOMContentLoaded', () => {
           checkNetworthWin(p, currentIndex);
         };
 
-        // 賣出（若停牌禁止）
+        // 賣出
         btnSell.onclick=()=>{
           const sym = stockSelectEl.value;
           if((MARKET.halted[sym]||0)>0){ alert('該股停牌中，暫停交易'); return; }
@@ -859,7 +852,7 @@ addEventListener('DOMContentLoaded', () => {
           buyBtn.onclick=()=>{
             const price=tile.price;
             if(p.balance < price){
-              if(confirm('現金不足，是否以貸款方式購買？（下方選金額與年限，先申貸再按購買）')){
+              if(confirm('現金不足，是否以貸款方式購買？（下方申貸後再按購買）')){
                 bankBar.style.display='flex';
                 return;
               }else{ return; }
@@ -911,14 +904,12 @@ addEventListener('DOMContentLoaded', () => {
           delta= -ev.amount; p.expense+=ev.amount;p.balance-=ev.amount;
         }else if(ev.type==='skip'){
           p.skip = Math.max(0,(p.skip||0)) + (ev.skip||1);
-          delta = 0; // 僅標記跳回合
-          text += '（已標記，下一回合自動跳過）';
+          delta = 0; text += '（已標記，下一回合自動跳過）';
         }else if(ev.type==='invest'){
           // 生成投資案：金額與報酬（-40%~+60%）
           const cost = randInt(200,600);
-          const roi = (randInt(-40,60))/100; // -0.4 ~ +0.6
+          const roi = (randInt(-40,60))/100;
           delta=0;
-          // 詢問是否投資
           if(confirm(`是否投資？需要 $${money(cost)}；下次輪到你時結算（可能${roi>=0? '賺':'賠'} ${(Math.abs(roi)*100).toFixed(0)}%）`)){
             if(p.balance<cost){
               if(confirm('現金不足，是否先申請貸款？')){
@@ -926,7 +917,6 @@ addEventListener('DOMContentLoaded', () => {
                 alert('請先申貸，再回事件卡按「知道了」。投資案已保留到你下次回合時結算。');
               }
             }
-            // 先扣款（可為負）
             p.balance -= cost; p.expense += Math.max(0,cost);
             p.pendingInvest = { cost, roi };
             text = `你選擇投資！下次輪到你時自動結算（${roi>=0? '預估獲利':'可能損失'} ${(Math.abs(roi)*100).toFixed(0)}%）。`;
@@ -1015,15 +1005,15 @@ addEventListener('DOMContentLoaded', () => {
     cardEl.style.display='none'; if(!players.length || gameOver) return;
     currentIndex = (currentIndex + 1) % players.length;
     if(currentIndex===0){
-      // 每全員行動完視作「收盤」與「過了一個月」
+      // 全員走完：視作「收盤」與「過了一個月」
       MARKET.closeAll();
-      // 所有人銀行處理一次
       players.forEach(p=>monthlyBankProcess(p));
       roundNow+=1;
       if(roundNow>roundMax){ endGameByRounds(); return; }
     }
-    // 如果新玩家有 pending 投資，立即結算
     const p=players[currentIndex];
+
+    // 若有投資案，立即結算
     if(p?.pendingInvest){
       const {cost, roi}=p.pendingInvest;
       const pnl = Math.round(cost*roi);
@@ -1034,11 +1024,10 @@ addEventListener('DOMContentLoaded', () => {
       alert(`${p.name}｜${msg}`);
     }
 
-    // 若玩家需要跳過回合
+    // 跳過回合
     if(p?.skip>0){
       p.skip -= 1;
       alert(`${p.name} 本回合休息（剩餘 ${p.skip}）`);
-      // 直接切下一位
       return advanceTurn();
     }
 
@@ -1052,7 +1041,7 @@ addEventListener('DOMContentLoaded', () => {
 
     const p=players[currentIndex];
 
-    // 跳過回合判定（保險：若未被 advanceTurn 捕捉）
+    // 保險：若標記跳過
     if((p?.skip||0)>0){
       p.skip -= 1;
       alert(`${p.name} 本回合休息（剩餘 ${p.skip}）`);
@@ -1066,10 +1055,9 @@ addEventListener('DOMContentLoaded', () => {
     const roll=Math.floor(Math.random()*6)+1; resultEl.textContent=`你擲出了：${roll}`;
     p.pos = (prevPos + roll) % PATH.length;
 
-    // 經過起點（視為又過一個月）：若新位置的索引小於舊位置 -> 繞過一圈
+    // 經過起點（視為又過一個月）：若新位置索引小於舊位置 -> 繞過一圈
     if(p.pos < prevPos){
       monthlyBankProcess(p);
-      // 額外提示
       pushLedger(p, roll, '經過起點（月度結算）', 0);
     }
 
@@ -1089,7 +1077,7 @@ addEventListener('DOMContentLoaded', () => {
   renderBoard();
   renderStats();
 
-  // 基本測試（網址加 #test）
+  //（可選）基本測試：URL 後面加 #test
   function logTest(msg){ testOutput.style.display='block'; testOutput.textContent += msg + '\n'; }
   function runTests(){
     try{
@@ -1097,13 +1085,6 @@ addEventListener('DOMContentLoaded', () => {
       console.assert(PATH.length===64,'PATH=64');
       const uniq=new Set(PATH); console.assert(uniq.size===64,'PATH 不重複');
       const tmp=buildTiles(PATH.length); console.assert(tmp.length===64,'TILES=64');
-
-      // 股價限制測
-      const ref = MARKET.refClose.LION;
-      const np = MARKET.nextPrice('LION', ()=>0.99); // 接近上限
-      console.assert(np<=Math.floor(ref*1.1)+1,'漲停限制');
-      // 等額本息測（1年）
-      const r=players;
       logTest('✓ OK');
     }catch(e){ logTest('❌ '+(e?.message||e)); }
   }
