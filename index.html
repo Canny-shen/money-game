@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>理財小富翁（動物版）— 淨值達標勝利｜股票持股/成本檢視 + 持續波動</title>
+<title>理財小富翁（動物版）— 銀行/貸款/股利/停牌/投資事件</title>
 <style>
   :root{
     --primary:#5d9cec; --panel:#ffffff; --bg:#f0f8ff; --ink:#0f172a;
@@ -12,7 +12,7 @@
   *{box-sizing:border-box}
   body{font-family:"Noto Sans TC",Arial,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:12px}
   .layout{display:flex; gap:16px; align-items:flex-start; justify-content:center; max-width:1400px; margin:0 auto;}
-  .leftCol{flex:0 0 520px; display:flex; flex-direction:column; gap:12px}
+  .leftCol{flex:0 0 560px; display:flex; flex-direction:column; gap:12px}
   .rightCol{flex:0 1 auto}
   .panel{background:var(--panel); border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,.12); padding:12px;}
   h1{margin:0 0 12px; text-align:center}
@@ -41,7 +41,7 @@
 
   /* 骰子與卡 */
   #dice{font-size:72px;cursor:pointer;user-select:none;margin-top:6px;text-align:center}
-  #result{margin-top:6px;font-size:18px;font-weight:700;text-align:center}
+  #result{margin-top:6px;font-size:18px;font-weight:700;text-align:center;min-height:1.6em}
   #card{display:none;border:2px solid var(--accent);padding:12px;margin:10px 0 0;border-radius:14px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.12)}
   #card h3{margin:4px 0 6px}
   #card .amount{font-weight:700}
@@ -58,7 +58,7 @@
   .pill .nm{font-size:9px;line-height:1;margin-top:1px;color:#111}
   #tileInfo{margin-top:6px;font-size:14px}
 
-  /* 股票持股表 */
+  /* 表格 */
   #holdings{width:100%; overflow:auto; border-top:1px dashed #cbd5e1; margin-top:8px; padding-top:8px}
   #holdings table{width:100%; border-collapse:collapse; font-size:12px}
   #holdings th,#holdings td{border-bottom:1px solid #eef2f7; padding:6px 4px; text-align:right}
@@ -68,7 +68,7 @@
   details{margin-top:8px}
   summary{cursor:pointer}
 
-  @media (max-width: 1020px){
+  @media (max-width: 1100px){
     .layout{flex-direction:column}
     .leftCol,.rightCol{width:100%}
     .board{grid-template-columns:repeat(8, 52px); grid-template-rows:repeat(8, 52px)}
@@ -85,8 +85,8 @@
         <div class="row">
           <input id="nameInput" placeholder="請輸入玩家名稱"/>
           <div>初始金額：<input id="startMoney" type="number" min="0" step="100" value="3000" style="width:120px"></div>
-          <div>回合上限：<input type="number" id="roundLimit" min="1" max="50" value="20" style="width:90px"></div>
-          <div>勝利淨值（資產淨值）：<input type="number" id="winTarget" min="0" step="100" value="5000" style="width:120px"></div>
+          <div>回合上限：<input type="number" id="roundLimit" min="1" max="100" value="100" style="width:90px"></div><!-- 🆕 預設 100 -->
+          <div>勝利淨值（0=關閉）：<input type="number" id="winTarget" min="0" step="100" value="0" style="width:120px"></div><!-- 🆕 預設 0 關閉 -->
         </div>
         <p style="margin:6px 0">點下方動物加入（最多 8 人）：</p>
         <div id="avatars"></div>
@@ -99,11 +99,13 @@
 
       <div class="panel" id="game" style="display:none">
         <h3>目前玩家： <span id="currentPlayerName"></span></h3>
-        <div class="row"><span>回合：<span id="roundNow">1</span>/<span id="roundMax">20</span></span></div>
+        <div class="row"><span>回合：<span id="roundNow">1</span>/<span id="roundMax">100</span></span></div>
         <div class="stats">
           <div class="chip good">總收入：<span id="income">0</span></div>
           <div class="chip bad">總支出：<span id="expense">0</span></div>
           <div class="chip">現金餘額：<strong id="balance">0</strong></div>
+          <div class="chip">存款：<strong id="chipDeposit">0</strong></div><!-- 🆕 -->
+          <div class="chip bad">貸款：<strong id="chipLoan">0</strong></div><!-- 🆕 -->
           <div class="chip">資產淨值：<strong id="networth">0</strong></div>
           <div class="chip">股票：<strong id="stockSummary">—</strong></div>
         </div>
@@ -133,8 +135,14 @@
                 <button id="btnSell" class="secondary">賣出</button>
               </div>
 
-              <!-- 持股表 -->
-              <div id="holdings" style="display:none"></div>
+              <!-- 🆕 銀行操作列（每圈開啟） -->
+              <div id="bankActions" class="row" style="display:none; align-items:flex-end">
+                <div>金額：<input id="bankAmt" type="number" min="0" value="0" style="width:110px"></div>
+                <button id="btnDeposit">存入</button>
+                <button id="btnWithdraw" class="secondary">提領</button>
+                <div class="chip">存款餘額：$ <span id="bankBal">0</span></div>
+                <button id="btnContinue" class="secondary" style="margin-left:auto">繼續前進 ▶</button>
+              </div>
 
               <div class="row" style="margin-top:6px">
                 <button id="buyBtn" class="secondary" style="display:none">購買/升級地產</button>
@@ -151,7 +159,12 @@
         </details>
 
         <details>
-          <summary>📊 排行（淨值：現金+地產+股票）</summary>
+          <summary>🏦 銀行（存款/貸款明細）</summary><!-- 🆕 -->
+          <div id="bankPanel" style="font-size:13px"></div>
+        </details>
+
+        <details>
+          <summary>📊 排行（淨值：現金+存款+地產+股票−貸款）</summary>
           <ol id="leaderboard" style="text-align:left;margin:8px 0 0"></ol>
         </details>
       </div>
@@ -170,13 +183,31 @@
 
 <script>
 addEventListener('DOMContentLoaded', () => {
+  // ========= 參數（可調） =========
+  const PERIODS_PER_YEAR = 12;           // 🆕 每圈視為 1 期
+  const DEPOSIT_APR = 0.015;             // 🆕 存款年利率 1.5%
+  const MORTGAGE_APR = 0.025;            // 🆕 地產貸款年利率 2.5%
+  const MARGIN_APR = 0.06;               // 🆕 股票融資利率 6%
+  const PRICE_LIMIT = 0.10;              // 🆕 臺灣漲跌幅 10%
+  const NEWS_PROB_PER_TURN = 0.25;       // 🆕 每位玩家回合開頭觸發市場新聞機率
+
   // ========= 小工具 =========
   const $ = id => document.getElementById(id);
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const money = n => Number(n).toLocaleString('zh-TW');
+  const money = n => Number(Math.round(n)).toLocaleString('zh-TW');
   const randInt=(min,max,rnd=Math.random)=>Math.floor(min + rnd()*(max-min+1));
+  const nowStr=()=>new Date().toLocaleString();
 
-  // 角色圖：內嵌 SVG
+  // 🆕 攤還計算：期付額（本息平均）
+  function amortizedPayment(principal, apr, years){
+    const n = Math.max(1, Math.round(years*PERIODS_PER_YEAR));
+    const r = apr / PERIODS_PER_YEAR;
+    if(r===0) return Math.round(principal/n);
+    const f = Math.pow(1+r, n);
+    return Math.round(principal * r * f / (f-1));
+  }
+
+  // 角色圖：內嵌 SVG（沿用）
   function svgAnimal(emoji, bg){
     const svg = `<?xml version='1.0' encoding='UTF-8'?>
       <svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'>
@@ -220,6 +251,8 @@ addEventListener('DOMContentLoaded', () => {
   const balanceEl=$('balance');
   const networthEl=$('networth');
   const stockSummaryEl=$('stockSummary');
+  const chipDepositEl=$('chipDeposit');           // 🆕
+  const chipLoanEl=$('chipLoan');                 // 🆕
 
   const diceEl=$('dice');
   const resultEl=$('result');
@@ -238,6 +271,13 @@ addEventListener('DOMContentLoaded', () => {
   const btnSell=$('btnSell');
   const holdingsEl=$('holdings');
 
+  const bankActionsEl=$('bankActions');          // 🆕
+  const bankAmtEl=$('bankAmt');                  // 🆕
+  const btnDeposit=$('btnDeposit');              // 🆕
+  const btnWithdraw=$('btnWithdraw');            // 🆕
+  const btnContinue=$('btnContinue');            // 🆕
+  const bankBalEl=$('bankBal');                  // 🆕
+
   const buyBtn=$('buyBtn');
   const okBtn=$('okBtn');
   const nextBtn=$('nextBtn');
@@ -246,16 +286,19 @@ addEventListener('DOMContentLoaded', () => {
   const tileInfoEl=$('tileInfo');
   const ledgerEl=$('ledger');
   const leaderboardEl=$('leaderboard');
+  const bankPanelEl=$('bankPanel');              // 🆕
   const testOutput=$('testOutput');
 
   // ========= 狀態 =========
   let players=[]; let currentIndex=0; let gameOver=false;
-  let roundNow=1; let roundMax=20; let winTarget=5000;
+  let roundNow=1; let roundMax=100; let winTarget=0;
   const allLedger=[];
   const GRID=8;
   let marketTimer=null;
+  let blockRoll=false;           // 🆕 卡片阻擋骰子（銀行/投資結果/住院）
+  let deferredMove=null;         // 🆕 {pIndex, roll} 銀行處理完才結算的那一步
 
-  // === 股票市場：20 檔 ===
+  // === 股票市場：20 檔 + 殖利率/停牌/偏移 ===
   const MARKET={
     list: [
       {symbol:'LION', name:'雄獅'}, {symbol:'BEAR', name:'棕熊'}, {symbol:'FOX', name:'狐狸'},
@@ -267,17 +310,52 @@ addEventListener('DOMContentLoaded', () => {
       {symbol:'HORS', name:'駿馬'}, {symbol:'ZEBR', name:'斑馬'}
     ],
     price: {},
+    yield: {},        // 🆕 年殖利率（0.02~0.06）
+    halt: {},         // 🆕 {sym: periodsLeft}
+    bias: {},         // 🆕 {sym: {drift, left}}
     init(){
-      this.list.forEach((s,i)=>{ // 初始價：60~300
+      this.list.forEach((s,i)=>{
         this.price[s.symbol] = 60 + Math.round((i+1)* (240/this.list.length)) + Math.floor(Math.random()*20);
+        this.yield[s.symbol] = 0.02 + Math.random()*0.04;
       });
+      this.halt={}; this.bias={};
     },
-    tickAll(){ // 全市場波動（-10% ~ +10%）
+    tickAll(){
       for(const s of this.list){
-        const p=this.price[s.symbol];
-        const pct=(Math.random()*0.20)-0.10;
+        const sym=s.symbol;
+        if(this.halt[sym]>0){
+          this.halt[sym]--; // 停牌中：不動價
+          continue;
+        }
+        let drift = 0;
+        if(this.bias[sym]?.left>0){
+          drift = this.bias[sym].drift;
+          this.bias[sym].left--;
+          if(this.bias[sym].left<=0) delete this.bias[sym];
+        }
+        const base = (Math.random()*0.10)-0.05; // 基礎 ±5%
+        let pct = base + drift;
+        pct = Math.max(-PRICE_LIMIT, Math.min(PRICE_LIMIT, pct)); // 漲跌幅限制 ±10%
+        const p=this.price[sym];
         const np = Math.max(10, Math.round(p*(1+pct)));
-        this.price[s.symbol]=np;
+        this.price[sym]=np;
+      }
+    },
+    maybeNews(){
+      if(Math.random() > NEWS_PROB_PER_TURN) return null;
+      const s = this.list[Math.floor(Math.random()*this.list.length)];
+      const sym = s.symbol;
+      if(Math.random()<0.3){
+        // 停牌 1~3 期
+        const k = randInt(1,3);
+        this.halt[sym] = Math.max(this.halt[sym]||0, k);
+        return `📰 ${sym} 停牌 ${k} 期，暫停交易與波動。`;
+      }else{
+        // 利多/利空：之後 2~4 期帶偏移（±3%）
+        const left = randInt(2,4);
+        const drift = (Math.random()<0.5?-1:1) * (0.015 + Math.random()*0.02); // 1.5%~3.5%
+        this.bias[sym] = {drift, left};
+        return `📰 ${sym} ${drift>0?'利多':'利空'}新聞，未來 ${left} 期走勢偏${drift>0?'強📈':'弱📉'}。`;
       }
     }
   };
@@ -297,7 +375,7 @@ addEventListener('DOMContentLoaded', () => {
   }
   const PATH=spiralPath(GRID);
 
-  // 事件卡池
+  // 事件卡池（加入住院/投資）
   const EVENTS=[
     { title:'打工賺錢', text:'你去便利商店打工。', type:'income', amount:200 },
     { title:'壓歲錢', text:'收到阿嬤的紅包。', type:'income', amount:500 },
@@ -308,14 +386,18 @@ addEventListener('DOMContentLoaded', () => {
     { title:'文具補給', text:'買筆記本與鉛筆。', type:'expense', amount:80 },
     { title:'同學生日禮', text:'挑小禮物慶生。', type:'expense', amount:150 },
     { title:'社團表現優秀', text:'被老師表揚，得到小獎金。', type:'income', amount:250 },
-    { title:'遺失車票', text:'補買車票。', type:'expense', amount:60 }
+    { title:'遺失車票', text:'補買車票。', type:'expense', amount:60 },
+    // 🆕 住院跳過
+    { title:'受傷住院', text:'休息並觀察，下一回合跳過一次。', type:'skip', skip:1 },
+    // 🆕 投資機會（可選）
+    { title:'投資機會', text:'你遇到一個投資專案，是否投入？下回合自動結算盈虧。', type:'invest' }
   ];
 
   // 建盤：含地產
   function buildTiles(len){
     const tiles=[{ name:'起點', type:'start' }];
     let propId=1;
-    const weights={ salary:0.22, event:0.25, shop:0.12, stock:0.12, tax:0.08, donate:0.05, property:0.16 };
+    const weights={ salary:0.20, event:0.30, shop:0.10, stock:0.12, tax:0.08, donate:0.04, property:0.16 };
     const keys=Object.keys(weights);
     const pick=()=>{ let r=Math.random(); let acc=0; for(const k of keys){ acc+=weights[k]; if(r<=acc) return k; } return keys.at(-1); };
     for(let i=1;i<len;i++){
@@ -327,7 +409,7 @@ addEventListener('DOMContentLoaded', () => {
       else if(t==='tax')     tiles.push({ name:'稅金', type:'tax',  amount: randInt(80,180) });
       else if(t==='donate')  tiles.push({ name:'捐款', type:'donate',amount: randInt(60,140) });
       else if(t==='property'){
-        const price=randInt(800,1600);
+        const price=randInt(900,1800);
         const baseRent=Math.max(10, Math.floor(price*0.18));
         tiles.push({ name:`地產 ${propId++}`, type:'property', price, baseRent, level:1, maxLevel:3, ownerIndex:null });
       }
@@ -336,7 +418,7 @@ addEventListener('DOMContentLoaded', () => {
   }
   let TILES=buildTiles(PATH.length);
 
-  // === 幫助計算：地產 / 股票 / 淨值 ===
+  // === 幫助計算：地產 / 股票 / 淨值 / 貸款 ===
   function propertyValueForPlayer(playerIndex){
     let total=0;
     TILES.forEach(t=>{
@@ -355,8 +437,12 @@ addEventListener('DOMContentLoaded', () => {
     }
     return total;
   }
+  function loansOutstanding(p){
+    if(!p?.loans) return 0;
+    return p.loans.reduce((s,l)=>s+(l.closed?0:l.principal),0);
+  }
   function netWorthOf(player, playerIndex){
-    return (player.balance||0) + propertyValueForPlayer(playerIndex) + stockValueOf(player);
+    return (player.balance||0) + (player.bankDeposit||0) + propertyValueForPlayer(playerIndex) + stockValueOf(player) - loansOutstanding(player);
   }
 
   // === UI：角色頭像
@@ -380,7 +466,8 @@ addEventListener('DOMContentLoaded', () => {
         const stockBag={}; MARKET.list.forEach(s=>stockBag[s.symbol]={qty:0,avg:0});
         players.push({
           name:customName, img:(img.src||''), income:0, expense:0, balance:0, ledger:[],
-          pos:0, stocks: stockBag
+          pos:0, stocks: stockBag,
+          bankDeposit:0, loans:[], skipTurns:0, pendingInvest:null    // 🆕
         });
         picked.textContent=customName;
         div.classList.add('selected'); div.disabled=true;
@@ -392,27 +479,15 @@ addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // === 棋盤繪製（含防呆） ===
+  // === 棋盤繪製 ===
   function renderBoard(){
     if(!boardEl){ console.error('找不到 #board'); return; }
     boardEl.innerHTML='';
-
-    // 產生 64 個格子
     const total = GRID*GRID;
     for(let i=0;i<total;i++){
       const cell=document.createElement('div'); cell.className='cell'; cell.dataset.idx=i;
       boardEl.appendChild(cell);
     }
-
-    // 路徑與長度檢查
-    if(!Array.isArray(PATH) || PATH.length!==total){
-      boardEl.innerHTML = `<div style="padding:8px;color:#c62828;background:#fff;border-radius:8px">
-        棋盤路徑產生失敗（PATH 長度=${PATH?.length||'N/A'}，應為 ${total}）。請重新整理或貼回完整檔案。
-      </div>`;
-      return;
-    }
-
-    // 依螺旋 PATH 佈置每個 tile
     for(let k=0;k<TILES.length;k++){
       const boardIndex = PATH[k];
       const cell=boardEl.querySelector(`.cell[data-idx="${boardIndex}"]`);
@@ -453,6 +528,106 @@ addEventListener('DOMContentLoaded', () => {
     if(cp){ const t=TILES[cp.pos||0]; tileInfoEl.textContent=`位置：第 ${(cp.pos||0)+1} 格（${t.name}）`; }
   }
 
+  // === 銀行：存款/貸款處理 ===
+  function renderBankPanel(){
+    const p=players[currentIndex]; if(!p) return;
+    const rows = (p.loans||[]).filter(l=>!l.closed && l.remainingPeriods>0).map(l=>{
+      return `<tr>
+        <td>${(l.kind||'一般')}</td>
+        <td>${(l.years||'?')} 年</td>
+        <td>${(l.apr*100).toFixed(2)}%</td>
+        <td>$ ${money(l.principal)}</td>
+        <td>${l.remainingPeriods}</td>
+        <td>$ ${money(l.payment)}</td>
+      </tr>`;
+    }).join('');
+    bankPanelEl.innerHTML = `
+      <div>存款餘額：$ <b>${money(p.bankDeposit||0)}</b></div>
+      <table style="width:100%;border-collapse:collapse;margin-top:6px">
+        <thead><tr><th align="left">貸款別</th><th>年限</th><th>年利率</th><th>剩餘本金</th><th>剩餘期數</th><th>每期應繳</th></tr></thead>
+        <tbody>${rows||`<tr><td colspan="6" style="text-align:center;color:#64748b">目前無未清貸款</td></tr>`}</tbody>
+      </table>
+    `;
+  }
+  function processDepositPeriod(p){
+    const dep = p.bankDeposit || 0;
+    if(dep>0){
+      const interest = Math.round(dep * (DEPOSIT_APR/PERIODS_PER_YEAR));
+      p.bankDeposit += interest;
+      p.income += interest;
+      pushLedger(p, '-', '存款利息', +interest);
+    }
+  }
+  function processLoansPeriod(p){
+    if(!p.loans) return;
+    for(const l of p.loans){
+      if(l.closed || l.remainingPeriods<=0) continue;
+      const interest = Math.round(l.principal * (l.apr/PERIODS_PER_YEAR));
+      const principalPay = Math.max(0, Math.min(l.principal, l.payment - interest));
+      const pay = principalPay + interest;
+      p.balance -= pay; p.expense += pay;
+      l.principal = Math.max(0, l.principal - principalPay);
+      l.remainingPeriods--;
+      pushLedger(p, '-', `${l.kind||'貸款'}第${(l.origPeriods-l.remainingPeriods)}/${l.origPeriods}期：本息`, -pay);
+      if(l.principal<=0 || l.remainingPeriods<=0){
+        l.closed=true; l.principal=0; l.remainingPeriods=0;
+        pushLedger(p, '-', `${l.kind||'貸款'}結清`, 0);
+      }
+    }
+  }
+  function openBankPanel(p, afterFn){
+    blockRoll=true;
+    bankActionsEl.style.display='flex';
+    stockActionsEl.style.display='none';
+    buyBtn.style.display='none';
+    holdingsEl.style.display='none';
+    cardEl.style.display='block';
+    cardTitleEl.textContent='🏦 銀行';
+    cardAvatarEl.src = p.img || svgAnimal('🏦','#ddd');
+    characterNameEl.textContent=p.name;
+    cardAmountEl.textContent='';
+    bankBalEl.textContent = money(p.bankDeposit||0);
+    cardTextEl.innerHTML = `完成一圈：<br>
+      • 存款利息已入帳（年利率 ${(DEPOSIT_APR*100).toFixed(2)}%）<br>
+      • 貸款已扣本息（剩餘期數見下方明細）`;
+    okBtn.style.display='none';
+    nextBtn.style.display='none';
+
+    btnDeposit.onclick=()=>{
+      const amt = Math.max(0, parseInt(bankAmtEl.value||'0',10));
+      if(amt<=0) return;
+      if(p.balance<amt){ alert('現金不足，無法存入。'); return; }
+      p.balance -= amt; p.bankDeposit = (p.bankDeposit||0)+amt;
+      pushLedger(p, '-', '存款', -amt);
+      bankBalEl.textContent=money(p.bankDeposit);
+      renderStats();
+    };
+    btnWithdraw.onclick=()=>{
+      const amt = Math.max(0, parseInt(bankAmtEl.value||'0',10));
+      if(amt<=0) return;
+      if((p.bankDeposit||0)<amt){ alert('存款不足，無法提領。'); return; }
+      p.bankDeposit -= amt; p.balance += amt;
+      pushLedger(p, '-', '提領', +amt);
+      bankBalEl.textContent=money(p.bankDeposit);
+      renderStats();
+    };
+    btnContinue.onclick=()=>{
+      bankActionsEl.style.display='none';
+      blockRoll=false;
+      if(typeof afterFn==='function') afterFn();
+      else cardEl.style.display='none';
+    };
+  }
+  function createLoan(p, amount, apr, years, kind){
+    const n = Math.max(1, Math.round(years*PERIODS_PER_YEAR));
+    const payment = amortizedPayment(amount, apr, years);
+    const loan = {kind, principal:amount, apr, years, payment, remainingPeriods:n, origPeriods:n, closed:false};
+    p.loans.push(loan);
+    p.balance += amount;
+    pushLedger(p, '-', `${kind||'貸款'}核貸（${years}年，${(apr*100).toFixed(2)}%）`, +amount);
+    return loan;
+  }
+
   // === 統計 ===
   function renderStats(){
     const p=players[currentIndex];
@@ -460,11 +635,15 @@ addEventListener('DOMContentLoaded', () => {
     incomeEl.textContent=money(p?.income??0);
     expenseEl.textContent=money(p?.expense??0);
     balanceEl.textContent=money(p?.balance??0);
+    chipDepositEl.textContent=money(p?.bankDeposit??0);     // 🆕
+    chipLoanEl.textContent=money(loansOutstanding(p));      // 🆕
+    renderBankPanel();                                      // 🆕
 
     if(p){
       const pv = propertyValueForPlayer(currentIndex);
       const sv = stockValueOf(p);
-      networthEl.textContent = money((p.balance||0) + pv + sv);
+      const nw = (p.balance||0) + (p.bankDeposit||0) + pv + sv - loansOutstanding(p);
+      networthEl.textContent = money(nw);
       const held = Object.entries(p.stocks).filter(([sym,obj])=>(obj?.qty||0)>0).slice(0,4).map(([sym,obj])=>`${sym}:${obj.qty}`).join('，');
       stockSummaryEl.textContent = held || '—';
     }else{
@@ -482,14 +661,16 @@ addEventListener('DOMContentLoaded', () => {
         ledgerEl.appendChild(li);
       });
     }
-    // 排行（依資產淨值排序，含股票市值）
+    // 排行（依資產淨值排序，含股票市值、存款、負債）
     leaderboardEl.innerHTML='';
     const ranked = players.map((pp,idx)=>{
-      return { pp, idx, pv: propertyValueForPlayer(idx), sv: stockValueOf(pp) };
-    }).map(r=>({ ...r, nw: (r.pp.balance||0)+r.pv+r.sv })).sort((a,b)=>b.nw-a.nw);
+      const pv=propertyValueForPlayer(idx), sv=stockValueOf(pp);
+      const nw = (pp.balance||0)+(pp.bankDeposit||0)+pv+sv - loansOutstanding(pp);
+      return {pp, idx, pv, sv, nw};
+    }).sort((a,b)=>b.nw-a.nw);
     ranked.forEach(r=>{
       const li=document.createElement('li'); 
-      li.textContent=`${r.pp.name}：淨值 ${money(r.nw)}（現金 ${money(r.pp.balance)}｜地產 ${money(r.pv)}｜股票 ${money(r.sv)}）`;
+      li.textContent=`${r.pp.name}：淨值 ${money(r.nw)}（現金 ${money(r.pp.balance)}｜存款 ${money(r.pp.bankDeposit)}｜地產 ${money(r.pv)}｜股票 ${money(r.sv)}｜貸款 ${money(loansOutstanding(r.pp))}）`;
       leaderboardEl.appendChild(li);
     });
 
@@ -498,7 +679,7 @@ addEventListener('DOMContentLoaded', () => {
   }
 
   function pushLedger(p, roll, title, delta){
-    const entry={ time:new Date().toLocaleString(), player:p.name, roll, title, type: delta>=0?'income':'expense', amount:Math.abs(delta), balance:p.balance };
+    const entry={ time:nowStr(), player:p.name, roll, title, type: delta>=0?'income':'expense', amount:Math.abs(delta), balance: Math.round(p.balance) };
     p.ledger.push(entry); allLedger.push(entry);
   }
 
@@ -515,7 +696,7 @@ addEventListener('DOMContentLoaded', () => {
         const pl = (px-avg)*qty;
         rows.push(
           `<tr${highlightSym===sym?' style="background:#f3f7ff"':''}>
-            <td>${sym}</td>
+            <td>${sym}${MARKET.halt[sym]>0?'（停牌）':''}</td>
             <td>${qty}</td>
             <td>$ ${money(avg)}</td>
             <td>$ ${money(px)}</td>
@@ -539,7 +720,7 @@ addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  // === 勝利（淨值）檢查 ===
+  // === 勝利（若 winTarget>0 才啟用） ===
   function checkNetworthWin(p, pIndex){
     const nw = netWorthOf(p, pIndex);
     if(winTarget>0 && nw>=winTarget){
@@ -551,12 +732,39 @@ addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
+  // === 股票/地產用：不足時可以貸款 ===
+  function ensureFundsWithLoan(p, needed, kind){
+    if(needed<=0) return true;
+    // 先詢問是否動用存款
+    if((p.bankDeposit||0)>0){
+      const useDep = confirm(`需要 $${money(needed)}。要先從存款提領嗎？`);
+      if(useDep){
+        const amt = Math.min(needed, p.bankDeposit);
+        p.bankDeposit -= amt; p.balance += amt;
+        pushLedger(p, '-', '提領（購買用途）', +amt);
+        needed -= amt;
+      }
+    }
+    if(needed<=0) return true;
+    // 問是否貸款
+    if(confirm(`仍差 $${money(needed)}。要申請${kind}貸款嗎？`)){
+      let years = parseInt(prompt('請輸入貸款年限（1-5 年）：','3')||'3',10);
+      years = clamp(years,1,5);
+      const apr = (kind==='地產貸款')? MORTGAGE_APR : MARGIN_APR;
+      const loan = createLoan(p, needed, apr, years, kind);
+      renderStats();
+      return true;
+    }
+    return false;
+  }
+
   // === 事件處理 ===
   function applyTileEffect(p, roll){
     const tile=TILES[p.pos||0];
     buyBtn.style.display='none'; buyBtn.onclick=null;
     stockActionsEl.style.display='none';
     holdingsEl.style.display='none';
+    bankActionsEl.style.display='none';
     btnBuy.onclick=null; btnSell.onclick=null;
 
     let title=''; let text=''; let delta=0;
@@ -586,7 +794,7 @@ addEventListener('DOMContentLoaded', () => {
         stockSelectEl.innerHTML='';
         MARKET.list.forEach(s=>{
           const opt=document.createElement('option');
-          opt.value=s.symbol; opt.textContent=`${s.symbol}（${s.name}）`;
+          opt.value=s.symbol; opt.textContent=`${s.symbol}（${s.name}）${MARKET.halt[s.symbol]>0?'【停牌】':''}`;
           stockSelectEl.appendChild(opt);
         });
         stockSelectEl.selectedIndex = Math.floor(Math.random()*MARKET.list.length);
@@ -596,7 +804,11 @@ addEventListener('DOMContentLoaded', () => {
           const px = MARKET.price[sym];
           stockPriceEl.textContent = '$ ' + money(px);
           stockQtyEl.value = 1;
-          cardTextEl.innerHTML = `推薦標的：<b>${sym}</b>（可改選），目前市價 $ ${money(px)}。`;
+          const halted = MARKET.halt[sym]>0;
+          btnBuy.disabled = btnSell.disabled = halted;
+          cardTextEl.innerHTML = halted
+            ? `📛 ${sym} 目前停牌中，暫停交易。`
+            : `推薦標的：<b>${sym}</b>（可改選），目前市價 $ ${money(px)}。`;
           renderHoldings(p, sym);
         };
         updatePriceUI();
@@ -606,14 +818,19 @@ addEventListener('DOMContentLoaded', () => {
         stockActionsEl.style.display='flex';
         stockSelectEl.onchange = updatePriceUI;
 
-        // 買入：更新加權平均成本
+        // 買入：更新加權平均成本；不足可貸款（融資）
         btnBuy.onclick=()=>{
           const sym = stockSelectEl.value;
+          if(MARKET.halt[sym]>0){ alert('此股停牌，禁止交易。'); return; }
           const qty = Math.max(1, parseInt(stockQtyEl.value||'1',10));
           const px = MARKET.price[sym];
           const cost = qty * px;
-          if(p.balance < cost){ alert('現金不足，無法買入。'); return; }
-
+          let need = cost - p.balance;
+          if(need>0){
+            const ok = ensureFundsWithLoan(p, need, '股票融資');
+            if(!ok) return updatePriceUI();
+          }
+          // 重新計算（可能剛貸款/提領）
           const cur = p.stocks[sym] || {qty:0,avg:0};
           const newQty = cur.qty + qty;
           const newAvg = newQty>0 ? Math.round(((cur.qty*cur.avg) + cost) / newQty) : 0;
@@ -628,9 +845,10 @@ addEventListener('DOMContentLoaded', () => {
           checkNetworthWin(p, currentIndex);
         };
 
-        // 賣出：不更動 avg（剩餘部位沿用原平均成本）
+        // 賣出：不更動 avg
         btnSell.onclick=()=>{
           const sym = stockSelectEl.value;
+          if(MARKET.halt[sym]>0){ alert('此股停牌，禁止交易。'); return; }
           const qty = Math.max(1, parseInt(stockQtyEl.value||'1',10));
           const cur = p.stocks[sym] || {qty:0,avg:0};
           if(cur.qty < qty){ alert('持股不足。'); return; }
@@ -662,7 +880,11 @@ addEventListener('DOMContentLoaded', () => {
           buyBtn.style.display='inline-block';
           buyBtn.textContent = `購買（$ ${money(tile.price)}）`;
           buyBtn.onclick=()=>{
-            if(p.balance < tile.price){ alert('現金不足，無法購買。'); return; }
+            let need = tile.price - p.balance;
+            if(need>0){
+              const ok = ensureFundsWithLoan(p, need, '地產貸款');
+              if(!ok) return;
+            }
             p.expense += tile.price; p.balance -= tile.price;
             pushLedger(p, roll, `購買 ${tile.name}`, -tile.price);
             tile.ownerIndex = me; renderStats();
@@ -680,7 +902,11 @@ addEventListener('DOMContentLoaded', () => {
             buyBtn.style.display='inline-block';
             buyBtn.textContent = `升級至 Lv${tile.level+1}（$ ${money(upgradeCost)}）`;
             buyBtn.onclick=()=>{
-              if(p.balance < upgradeCost){ alert('現金不足，無法升級。'); return; }
+              let need = upgradeCost - p.balance;
+              if(need>0){
+                const ok = ensureFundsWithLoan(p, need, '地產貸款');
+                if(!ok) return;
+              }
               p.expense += upgradeCost; p.balance -= upgradeCost;
               tile.level += 1;
               pushLedger(p, roll, `${tile.name} 升級至 Lv${tile.level}`, -upgradeCost);
@@ -699,8 +925,31 @@ addEventListener('DOMContentLoaded', () => {
 
       case 'event': default: {
         const ev=EVENTS[Math.floor(Math.random()*EVENTS.length)];
-        title=ev.title; text=ev.text; delta= ev.type==='income'? ev.amount : -ev.amount;
-        if(ev.type==='income'){p.income+=ev.amount;p.balance+=ev.amount;}else{p.expense+=ev.amount;p.balance-=ev.amount;}
+        if(ev.type==='income' || ev.type==='expense'){
+          title=ev.title; text=ev.text; delta= ev.type==='income'? ev.amount : -ev.amount;
+          if(ev.type==='income'){p.income+=ev.amount;p.balance+=ev.amount;}else{p.expense+=ev.amount;p.balance-=ev.amount;}
+        }else if(ev.type==='skip'){
+          title=ev.title; text=ev.text; delta=0;
+          p.skipTurns = (p.skipTurns||0) + (ev.skip||1);
+          blockRoll=true; // 讓玩家看到提示
+        }else if(ev.type==='invest'){
+          const investAmt = randInt(200,800);
+          title=ev.title; text=`是否投資 $ ${money(investAmt)}？下一次輪到你時自動結算盈虧。`; delta=0;
+          buyBtn.style.display='inline-block';
+          buyBtn.textContent='我要投資';
+          buyBtn.onclick=()=>{
+            if(p.balance < investAmt){
+              const ok = ensureFundsWithLoan(p, investAmt - p.balance, '一般貸款');
+              if(!ok) return;
+            }
+            p.balance -= investAmt; p.expense += investAmt;
+            p.pendingInvest = {amount:investAmt, placedAt:roundNow, status:'pending'};
+            pushLedger(p, roll, '投資投入', -investAmt);
+            buyBtn.style.display='none';
+            cardTextEl.textContent='已投入，等下回合自動結算。';
+            renderStats();
+          };
+        }
         break;
       }
     }
@@ -717,11 +966,33 @@ addEventListener('DOMContentLoaded', () => {
     // 記帳
     pushLedger(p, roll, title, delta);
 
-    // 事件結束後再檢查一次（避免錯過）
+    // 淨值勝利（若有設定門檻）
     checkNetworthWin(p, currentIndex);
   }
 
-  // === 流程 ===
+  // === 每圈處理：銀行利息 + 股利 + 貸款攤還 ===
+  function processLapFinancials(p){
+    // 存款利息
+    processDepositPeriod(p);
+    // 股利：依持股與年殖利率發放（每圈一次）
+    for(const s of MARKET.list){
+      const sym=s.symbol;
+      const cur = p.stocks[sym]||{qty:0};
+      if(cur.qty>0){
+        const px = MARKET.price[sym]||0;
+        const div = Math.round(cur.qty * px * (MARKET.yield[sym]/PERIODS_PER_YEAR));
+        if(div>0){
+          p.balance += div; p.income += div;
+          pushLedger(p, '-', `股利 ${sym}`, +div);
+        }
+      }
+    }
+    // 貸款期繳
+    processLoansPeriod(p);
+    renderStats();
+  }
+
+  // === 開局/結束/回合 ===
   function startMarketTimer(){
     stopMarketTimer();
     marketTimer = setInterval(()=>{
@@ -744,8 +1015,8 @@ addEventListener('DOMContentLoaded', () => {
 
   function startGame({reseed=false}={}){
     if(players.length<1){ alert('請至少加入 1 位玩家'); return; }
-    roundMax = clamp(parseInt(roundLimitInput.value||'20',10),1,50);
-    winTarget = Math.max(0, parseInt(winTargetInput.value||'5000',10)); // 淨值判定
+    roundMax = clamp(parseInt(roundLimitInput.value||'100',10),1,100);
+    winTarget = Math.max(0, parseInt(winTargetInput.value||'0',10)); // 0=關閉
     const startMoney = Math.max(0, parseInt(startMoneyInput.value||'3000',10));
 
     roundNow=1; currentIndex=0; gameOver=false; allLedger.length=0;
@@ -753,8 +1024,9 @@ addEventListener('DOMContentLoaded', () => {
 
     players = players.map(p=>{
       const bag={}; MARKET.list.forEach(s=>bag[s.symbol]={qty:0,avg:0});
-      const np = { ...p, pos:0, income:0, expense:0, balance:startMoney, ledger:[], stocks:bag };
-      np.ledger.push({ time:new Date().toLocaleString(), player:np.name, roll:'-', title:'初始資金', type:'income', amount:startMoney, balance:startMoney });
+      const np = { ...p, pos:0, income:0, expense:0, balance:startMoney, ledger:[], stocks:bag,
+        bankDeposit:0, loans:[], skipTurns:0, pendingInvest:null };
+      np.ledger.push({ time:nowStr(), player:np.name, roll:'-', title:'初始資金', type:'income', amount:startMoney, balance:startMoney });
       return np;
     });
 
@@ -767,13 +1039,36 @@ addEventListener('DOMContentLoaded', () => {
 
   function endGameByRounds(){
     const ranked = players.map((pp,idx)=>{
-      return { pp, idx, pv: propertyValueForPlayer(idx), sv: stockValueOf(pp) };
-    }).map(r=>({ ...r, nw: (r.pp.balance||0)+r.pv+r.sv }))
-      .sort((a,b)=>b.nw-a.nw);
+      const pv=propertyValueForPlayer(idx), sv=stockValueOf(pp);
+      const nw=(pp.balance||0)+(pp.bankDeposit||0)+pv+sv - loansOutstanding(pp);
+      return {pp, idx, pv, sv, nw};
+    }).sort((a,b)=>b.nw-a.nw);
     const top = ranked[0];
-    alert(`⏱️ 達到 ${roundMax} 回合，${top.pp.name} 以資產淨值 ${money(top.nw)} 元獲勝！（現金 ${money(top.pp.balance)}｜地產 ${money(top.pv)}｜股票 ${money(top.sv)}）`);
+    alert(`⏱️ 達到 ${roundMax} 回合，${top.pp.name} 以資產淨值 ${money(top.nw)} 元獲勝！（現金 ${money(top.pp.balance)}｜存款 ${money(top.pp.bankDeposit)}｜地產 ${money(top.pv)}｜股票 ${money(top.sv)}｜貸款 ${money(loansOutstanding(top.pp))}）`);
     gameOver=true;
     stopMarketTimer();
+  }
+
+  function maybeResolvePendingInvestment(){
+    const p=players[currentIndex];
+    if(!p?.pendingInvest || p.pendingInvest.status!=='pending') return false;
+    // 下一次輪到該玩家：自動結算
+    const amt = p.pendingInvest.amount;
+    const ratio = (Math.random()<0.5 ? -1 : 1) * (0.10 + Math.random()*0.40); // -50% ~ +50%
+    const profit = Math.round(amt * ratio);
+    if(profit>=0){ p.balance += amt + profit; p.income += (amt + profit); }
+    else{ p.balance += 0; p.expense += 0; /* 已於投入時扣款，損失不退本金 */ }
+    pushLedger(p, '-', `投資結算`, profit);
+    cardEl.style.display='block';
+    cardTitleEl.textContent='投資結果';
+    cardTextEl.textContent=`本次投資結果：${profit>=0?'獲利':'虧損'} $ ${money(Math.abs(profit))}`;
+    cardAmountEl.textContent = (profit>=0?'+':'-') + money(Math.abs(profit));
+    cardAmountEl.style.color=profit>=0?'var(--good)':'var(--bad)';
+    cardAvatarEl.src = p.img || svgAnimal('💼','#ddd');
+    characterNameEl.textContent=p.name;
+    p.pendingInvest=null;
+    blockRoll=true;
+    return true;
   }
 
   function advanceTurn(){
@@ -783,24 +1078,60 @@ addEventListener('DOMContentLoaded', () => {
       roundNow+=1;
       if(roundNow>roundMax){ endGameByRounds(); return; }
     }
-    renderStats(); resultEl.textContent='';
+    // 玩家回合開始：可能新聞事件
+    const news = MARKET.maybeNews();
+    if(news){ resultEl.textContent = news; }
+    renderStats(); resultEl.textContent = (news||'');
+
+    // 若需要結算投資，先顯示；若住院，直接跳過
+    if(maybeResolvePendingInvestment()){
+      // 顯示完投資結果，等待玩家按「知道了」才可擲骰
+      return;
+    }
+    const p=players[currentIndex];
+    if(p.skipTurns>0){
+      cardEl.style.display='block';
+      cardTitleEl.textContent='休息一下';
+      cardTextEl.textContent='你正在住院休息，本回合跳過。';
+      cardAmountEl.textContent='';
+      cardAvatarEl.src = p.img || svgAnimal('🛌','#ddd');
+      characterNameEl.textContent=p.name;
+      p.skipTurns--;
+      blockRoll=true; // 必須按「下一位」或「知道了」
+    }else{
+      blockRoll=false;
+    }
   }
 
   // 擲骰
   diceEl.addEventListener('click',()=>{
-    if(gameOver){ return; }
+    if(gameOver || blockRoll){ return; }
     if(!players.length){ alert('請先加入玩家'); return; }
 
+    // 市場每回合也波動一次
     MARKET.tickAll();
 
     const p=players[currentIndex];
     const roll=Math.floor(Math.random()*6)+1; resultEl.textContent=`你擲出了：${roll}`;
-    p.pos = ((p.pos||0)+roll) % PATH.length; renderBoard();
+    const old = p.pos||0;
+    const newPos = (old + roll) % PATH.length;
+    const wrapped = (old + roll) >= PATH.length;
+
+    p.pos = newPos; renderBoard();
+
+    if(wrapped){
+      // 每圈處理：先計息/股利/貸款，再開銀行面板，最後才進格
+      processLapFinancials(p);
+      deferredMove = {pIndex: currentIndex, roll};
+      openBankPanel(p, ()=>{ applyTileEffect(players[deferredMove.pIndex], deferredMove.roll); deferredMove=null; });
+      return;
+    }
+
     applyTileEffect(p, roll);
   });
 
-  okBtn.addEventListener('click', advanceTurn);
-  nextBtn.addEventListener('click', advanceTurn);
+  okBtn.addEventListener('click', ()=>{ blockRoll=false; cardEl.style.display='none'; });
+  nextBtn.addEventListener('click', ()=>{ blockRoll=false; cardEl.style.display='none'; advanceTurn(); });
 
   quickNewBtn.addEventListener('click',()=>startGame({reseed:false}));
   reseedNewBtn.addEventListener('click',()=>startGame({reseed:true}));
@@ -819,13 +1150,8 @@ addEventListener('DOMContentLoaded', () => {
       console.assert(PATH.length===64,'PATH=64');
       const uniq=new Set(PATH); console.assert(uniq.size===64,'PATH 不重複');
       const tmp=buildTiles(PATH.length); console.assert(tmp.length===64,'TILES=64');
-      const p={stocks:{AAA:{qty:0,avg:0}}, balance:100000, income:0, expense:0};
-      MARKET.price.AAA=100;
-      let cur=p.stocks.AAA; let qty=10; let px=100; let cost=qty*px;
-      cur={qty:cur.qty+qty, avg:Math.round(((cur.qty*cur.avg)+cost)/(cur.qty+qty))}; p.stocks.AAA=cur;
-      console.assert(p.stocks.AAA.avg===100 && p.stocks.AAA.qty===10,'avg 100 / qty 10');
-      qty=10; px=200; cost=qty*px; cur=p.stocks.AAA; cur={qty:cur.qty+qty, avg:Math.round(((cur.qty*cur.avg)+cost)/(cur.qty+qty))}; p.stocks.AAA=cur;
-      console.assert(p.stocks.AAA.avg===150 && p.stocks.AAA.qty===20,'avg 150 / qty 20');
+      // 攤還測試
+      const pay = amortizedPayment(12000, 0.06, 1); console.assert(pay>1000 && pay<1100,'amortized ~1033');
       logTest('✓ OK');
     }catch(e){ logTest('❌ '+(e?.message||e)); }
   }
