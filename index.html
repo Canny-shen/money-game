@@ -373,7 +373,7 @@ addEventListener('DOMContentLoaded', () => {
         // 漲跌幅限制（仍限制在 ±10%）
         base = Math.max(-0.10, Math.min(0.10, base));
         const p0=this.price[sym];
-        const np = Math.max(10, Math.round(p0*(1+base)));
+        const np = Math.max(10, Math.round(p0*(1+base));
         this.price[sym]=np;
       }
     }
@@ -796,7 +796,6 @@ addEventListener('DOMContentLoaded', () => {
     cardEl.style.display='block';
 
     // 臨時按鈕：同意/放棄
-    // 先移除可能殘留的動態元件
     Array.from(extraBtns.querySelectorAll('.tmpbtn')).forEach(n=>n.remove());
 
     const yes=document.createElement('button'); yes.textContent='投資'; yes.className='tmpbtn';
@@ -1111,6 +1110,9 @@ addEventListener('DOMContentLoaded', () => {
 
     startMarketTimer();
     renderStats();
+
+    // 確保卡片初始為隱藏（避免擲骰可見判斷誤判）
+    cardEl.style.display = 'none';
   }
 
   function endGameByRounds(){
@@ -1154,7 +1156,9 @@ addEventListener('DOMContentLoaded', () => {
   diceEl.addEventListener('click',()=>{
     if(gameOver){ return; }
     if(!players.length){ alert('請先加入玩家'); return; }
-    if(cardEl.style.display!=='none'){ return; } // 有對話卡時先處理完
+    // 修正：用計算後樣式判斷卡片是否顯示
+    const cardVisible = window.getComputedStyle(cardEl).display !== 'none';
+    if(cardVisible){ return; } // 有對話卡時先處理完
 
     MARKET.tickAll();
 
@@ -1221,3 +1225,4 @@ addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
